@@ -1,0 +1,301 @@
+<resources>
+    <string name="app_name">Academy Manager</string>
+
+    <!-- Common -->
+    <string name="currency_prefix">Rs</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="add">Add</string>
+    <string name="close">Close</string>
+    <string name="confirm">Confirm</string>
+    <string name="back">Back</string>
+    <string name="search">Search</string>
+    <string name="all">All</string>
+    <string name="loading">Loading…</string>
+    <string name="retry">Retry</string>
+    <string name="share">Share</string>
+    <string name="select_date">Select Date</string>
+    <string name="select_class">Select Class</string>
+    <string name="select_month">Select Month</string>
+    <string name="select_student">Select Student</string>
+    <string name="notes">Notes (optional)</string>
+    <string name="status">Status</string>
+    <string name="active">Active</string>
+    <string name="left">Left</string>
+    <string name="no_data">No records found</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="field_required">This field is required</string>
+    <string name="invalid_amount">Enter a valid amount</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_students">Students</string>
+    <string name="nav_attendance">Attendance</string>
+    <string name="nav_fees">Fees</string>
+    <string name="nav_more">More</string>
+
+    <!-- PIN / Lock Screen -->
+    <string name="pin_create_title">Create Security PIN</string>
+    <string name="pin_create_subtitle">Set a 4 to 6 digit PIN to protect your academy records offline</string>
+    <string name="pin_confirm_title">Confirm Your PIN</string>
+    <string name="pin_confirm_subtitle">Re-enter your PIN to confirm</string>
+    <string name="pin_enter_title">Enter PIN</string>
+    <string name="pin_enter_subtitle">Unlock %1$s</string>
+    <string name="pin_mismatch">PINs did not match. Try again.</string>
+    <string name="pin_wrong">Incorrect PIN. Please try again.</string>
+    <string name="pin_length_hint">4–6 digits</string>
+    <string name="pin_continue">Continue</string>
+    <string name="pin_unlock">Unlock</string>
+    <string name="pin_clear">Clear</string>
+    <string name="pin_backspace">Backspace</string>
+    <string name="pin_change_title">Change Security PIN</string>
+    <string name="pin_current_label">Enter current PIN</string>
+    <string name="pin_new_label">Enter new 4–6 digit PIN</string>
+    <string name="pin_confirm_new_label">Confirm new PIN</string>
+    <string name="pin_changed_success">Security PIN updated</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_title">Dashboard</string>
+    <string name="metric_total_students">Total Students</string>
+    <string name="metric_active_students_sub">%1$d active, %2$d left</string>
+    <string name="metric_today_attendance">Today\'s Attendance</string>
+    <string name="metric_today_attendance_sub">%1$d / %2$d marked present</string>
+    <string name="metric_not_marked">Not marked today</string>
+    <string name="metric_tuition_collected">Tuition Collected</string>
+    <string name="metric_paper_collected">Paper Fee Collected</string>
+    <string name="metric_total_pending">Total Pending</string>
+    <string name="metric_pending_breakdown">Tuition %1$s · Paper %2$s</string>
+    <string name="metric_income_vs_expense">Income vs Expense</string>
+    <string name="metric_income_expense_sub">In %1$s · Out %2$s</string>
+    <string name="quick_actions">Quick Actions</string>
+    <string name="action_mark_attendance">Mark Attendance</string>
+    <string name="action_add_student">Add Student</string>
+    <string name="action_collect_fee">Collect Fee</string>
+    <string name="action_reports">Reports</string>
+    <string name="this_month">This Month</string>
+
+    <!-- Students -->
+    <string name="students_title">Students</string>
+    <string name="search_students_hint">Search by name, father, roll no, phone</string>
+    <string name="add_student">Add Student</string>
+    <string name="edit_student">Edit Student</string>
+    <string name="student_name">Student Name *</string>
+    <string name="father_name">Father Name *</string>
+    <string name="phone_number">Phone Number *</string>
+    <string name="address">Address</string>
+    <string name="roll_no">Roll No *</string>
+    <string name="admission_date">Admission Date</string>
+    <string name="monthly_discount">Monthly Discount (Rs)</string>
+    <string name="student_photo">Student Photo</string>
+    <string name="choose_photo">Choose Photo</string>
+    <string name="remove_photo">Remove Photo</string>
+    <string name="no_classes_prompt">Create a class first before adding students.</string>
+    <string name="students_empty_title">No students yet</string>
+    <string name="students_empty_subtitle">Tap + to enroll your first student</string>
+    <string name="mark_as_left">Mark as Left</string>
+    <string name="reactivate_student">Reactivate Student</string>
+    <string name="delete_student">Delete Student</string>
+    <string name="delete_student_title">Delete Student?</string>
+    <string name="delete_student_warning">Deleting %1$s will permanently delete all of their attendance records, tuition and paper fee charges, receipts, and exam marks. This cannot be undone.</string>
+    <string name="tab_profile">Profile</string>
+    <string name="tab_attendance">Attendance</string>
+    <string name="tab_fees">Fees</string>
+    <string name="tab_results">Results</string>
+    <string name="student_saved">Student saved</string>
+    <string name="student_deleted">Student deleted</string>
+    <string name="student_marked_left">Student marked as Left</string>
+    <string name="student_reactivated">Student reactivated</string>
+    <string name="student_actions">Student Actions</string>
+    <string name="view_profile">View Full Profile</string>
+    <string name="roll_prefix">Roll #%1$s</string>
+
+    <!-- Teachers -->
+    <string name="teachers_title">Teachers</string>
+    <string name="search_teachers_hint">Search teachers by name or subject</string>
+    <string name="add_teacher">Add Teacher</string>
+    <string name="edit_teacher">Edit Teacher</string>
+    <string name="teacher_name">Teacher Name *</string>
+    <string name="subject_taught">Subject *</string>
+    <string name="monthly_salary">Monthly Salary (Rs) *</string>
+    <string name="joining_date">Joining Date</string>
+    <string name="teachers_empty_title">No teachers added</string>
+    <string name="teachers_empty_subtitle">Tap + to add a teacher and track salary payments</string>
+    <string name="salary_records">Salary Payment Record</string>
+    <string name="record_salary_payment">Pay Salary</string>
+    <string name="salary_paid_msg">Salary payment recorded</string>
+    <string name="also_record_expense">Also record in Expense Ledger</string>
+    <string name="delete_teacher_title">Delete Teacher?</string>
+    <string name="delete_teacher_warning">Delete %1$s and their salary payment history?</string>
+    <string name="no_salary_records">No salary payments recorded yet</string>
+
+    <!-- Classes, Subjects & Timetable -->
+    <string name="classes_title">Classes &amp; Timetable</string>
+    <string name="add_class">Add Class</string>
+    <string name="edit_class">Edit Class</string>
+    <string name="class_name">Class Name *</string>
+    <string name="class_monthly_fee">Monthly Fee (Rs) *</string>
+    <string name="classes_empty_title">No classes yet</string>
+    <string name="classes_empty_subtitle">Tap + to create a class with its monthly fee</string>
+    <string name="delete_class_title">Delete Class?</string>
+    <string name="delete_class_warning">Deleting this class removes its subjects and timetable.</string>
+    <string name="delete_class_has_students">Cannot delete class while %1$d student(s) are assigned to it. Reassign or remove students first.</string>
+    <string name="tab_subjects">Subjects</string>
+    <string name="tab_timetable">Timetable</string>
+    <string name="add_subject">Add Subject</string>
+    <string name="edit_subject">Edit Subject</string>
+    <string name="subject_name">Subject Name *</string>
+    <string name="total_marks">Total Marks *</string>
+    <string name="subjects_empty">No subjects added for this class yet</string>
+    <string name="add_timetable_slot">Add Timetable Slot</string>
+    <string name="start_time">Start Time *</string>
+    <string name="end_time">End Time *</string>
+    <string name="teacher_optional">Teacher Name</string>
+    <string name="timetable_empty">No classes scheduled for this day</string>
+    <string name="day_mon">Mon</string>
+    <string name="day_tue">Tue</string>
+    <string name="day_wed">Wed</string>
+    <string name="day_thu">Thu</string>
+    <string name="day_fri">Fri</string>
+    <string name="day_sat">Sat</string>
+
+    <!-- Attendance -->
+    <string name="attendance_title">Attendance</string>
+    <string name="tab_daily_mark">Mark Daily</string>
+    <string name="tab_monthly_report">Monthly Report</string>
+    <string name="present">Present</string>
+    <string name="absent">Absent</string>
+    <string name="leave">Leave</string>
+    <string name="present_short">P</string>
+    <string name="absent_short">A</string>
+    <string name="leave_short">L</string>
+    <string name="mark_all_present">Mark all present</string>
+    <string name="save_attendance">Save Attendance</string>
+    <string name="attendance_saved">Attendance saved for %1$s</string>
+    <string name="attendance_empty_students">No active students in this class</string>
+    <string name="attendance_percentage">%1$d%%</string>
+    <string name="working_days">Days: %1$d</string>
+
+    <!-- Fees -->
+    <string name="fees_title">Fees</string>
+    <string name="tab_tuition">Tuition</string>
+    <string name="tab_paper_fee">Paper Fee</string>
+    <string name="tab_other_fees">Other Fees</string>
+    <string name="tab_defaulters">Defaulters</string>
+    <string name="generate_monthly_fees">Generate monthly fees</string>
+    <string name="create_paper_fee_charges">Create paper fee charges</string>
+    <string name="add_custom_fee">Add Admission / Custom Fee</string>
+    <string name="fees_generated_result">Created %1$d new charge(s); skipped %2$d existing.</string>
+    <string name="paper_fees_created_result">Created %1$d paper fee charge(s); skipped %2$d existing.</string>
+    <string name="status_paid">Paid</string>
+    <string name="status_partial">Partial</string>
+    <string name="status_unpaid">Unpaid</string>
+    <string name="arrears_label">Arrears: %1$s</string>
+    <string name="current_month_label">Current: %1$s</string>
+    <string name="total_payable_label">Total Due: %1$s</string>
+    <string name="collect">Collect</string>
+    <string name="collect_payment">Collect Payment</string>
+    <string name="amount_paying">Amount Paying (Rs) *</string>
+    <string name="discount_amount">Discount (Rs)</string>
+    <string name="overpayment_error">Payment cannot exceed remaining balance (%1$s)</string>
+    <string name="discount_exceeds_error">Discount cannot exceed remaining charge</string>
+    <string name="payment_recorded">Payment saved · Receipt %1$s</string>
+    <string name="share_pdf_receipt">Share PDF Receipt</string>
+    <string name="receipt_no">Receipt %1$s</string>
+    <string name="paper_fee_title_hint">Exam / Paper Title * (e.g. Mid Term 2026)</string>
+    <string name="paper_fee_per_student">Fee per Student (Rs) *</string>
+    <string name="fee_type_label">Fee Type</string>
+    <string name="fee_type_admission">Admission Fee</string>
+    <string name="fee_type_custom">Custom Fee</string>
+    <string name="custom_fee_title">Fee Title *</string>
+    <string name="fee_amount">Amount (Rs) *</string>
+    <string name="pending_only">Pending Only</string>
+    <string name="collected_label">Collected</string>
+    <string name="pending_label">Pending</string>
+    <string name="billed_label">Billed</string>
+    <string name="tuition_empty">No tuition charges for this month yet. Tap "Generate monthly fees".</string>
+    <string name="paper_fee_empty">No paper fee charges yet. Tap "Create paper fee charges".</string>
+    <string name="other_fee_empty">No admission or custom fees recorded yet.</string>
+    <string name="defaulters_empty">No defaulters! All dues are cleared.</string>
+    <string name="tuition_defaulters">Tuition Defaulters</string>
+    <string name="paper_fee_defaulters">Paper Fee Defaulters</string>
+    <string name="other_fee_defaulters">Other Fee Defaulters</string>
+    <string name="receipt_history">Payment Receipts</string>
+    <string name="no_receipts">No payments recorded yet</string>
+
+    <!-- Income & Expense Ledger -->
+    <string name="ledger_title">Income &amp; Expense</string>
+    <string name="income">Income</string>
+    <string name="expense">Expense</string>
+    <string name="net_balance">Net Balance</string>
+    <string name="add_ledger_entry">Add Entry</string>
+    <string name="entry_title">Title / Description *</string>
+    <string name="category">Category</string>
+    <string name="ledger_empty">No manual income or expense entries for this month</string>
+    <string name="fee_collections_summary">Fee Collections This Month</string>
+
+    <!-- Exams & Results -->
+    <string name="exams_title">Exams &amp; Results</string>
+    <string name="create_exam">Create Exam</string>
+    <string name="exam_name">Exam Name *</string>
+    <string name="exam_date">Exam Date</string>
+    <string name="exams_empty">No exams created yet. Tap + to create an exam.</string>
+    <string name="enter_marks">Enter Marks</string>
+    <string name="results_and_ranks">Results &amp; Ranks</string>
+    <string name="select_subject">Select Subject</string>
+    <string name="marks_saved">Marks saved</string>
+    <string name="no_subjects_for_exam">Add subjects to this class first to enter marks.</string>
+    <string name="rank_label">Rank #%1$d</string>
+    <string name="grade_label">Grade %1$s</string>
+    <string name="export_result_card">Export Result Card PDF</string>
+    <string name="delete_exam_title">Delete Exam?</string>
+    <string name="delete_exam_warning">Delete %1$s and all entered marks?</string>
+
+    <!-- More Hub -->
+    <string name="more_title">More</string>
+    <string name="more_academics">Academics &amp; Staff</string>
+    <string name="more_finance">Finance &amp; Reports</string>
+    <string name="more_system">System</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Reports &amp; Exports</string>
+    <string name="report_attendance">Attendance Report</string>
+    <string name="report_tuition">Tuition Fee Report</string>
+    <string name="report_paper_fee">Paper Fee Report</string>
+    <string name="report_defaulters">Defaulters Report</string>
+    <string name="report_results">Exam Results Report</string>
+    <string name="report_ledger">Income &amp; Expense Report</string>
+    <string name="export_pdf">Export PDF</string>
+    <string name="export_csv">Export CSV</string>
+    <string name="export_failed">Could not generate export file</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="academy_profile_section">Academy Profile</string>
+    <string name="academy_name_label">Academy Name *</string>
+    <string name="academy_tagline_label">Tagline / Subtitle</string>
+    <string name="academy_phone_label">Academy Phone</string>
+    <string name="academy_address_label">Academy Address</string>
+    <string name="academy_logo_label">Academy Logo</string>
+    <string name="change_logo">Choose Logo</string>
+    <string name="remove_logo">Remove Logo</string>
+    <string name="profile_saved">Academy profile saved</string>
+    <string name="appearance_section">Appearance</string>
+    <string name="dark_mode_label">Dark Mode</string>
+    <string name="dark_mode_subtitle">Use dark surfaces across the app</string>
+    <string name="security_section">Security</string>
+    <string name="change_pin">Change PIN</string>
+    <string name="change_pin_subtitle">Update your 4–6 digit offline lock PIN</string>
+    <string name="backup_section">Offline Backup &amp; Restore</string>
+    <string name="backup_database">Backup Database to File</string>
+    <string name="backup_database_subtitle">Save an offline copy of all academy records</string>
+    <string name="restore_database">Restore Database from File</string>
+    <string name="restore_database_subtitle">Replace current records with a saved backup file</string>
+    <string name="backup_success">Database backup saved</string>
+    <string name="backup_error">Backup failed</string>
+    <string name="restore_confirm_title">Restore Database?</string>
+    <string name="restore_confirm_message">Restoring will replace all current students, attendance, fees, exams, and ledger records with the selected backup file. Continue?</string>
+    <string name="restore_success">Database restored successfully</string>
+    <string name="restore_invalid_file">Selected file is not a valid Academy Manager SQLite backup</string>
+</resources>

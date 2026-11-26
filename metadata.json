@@ -1,0 +1,6 @@
+{
+  "name": "Academy Manager",
+  "description": "100% offline Academy Management System for students, teachers, classes, attendance, fees, paper fees, exams, income & expenses, and reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
