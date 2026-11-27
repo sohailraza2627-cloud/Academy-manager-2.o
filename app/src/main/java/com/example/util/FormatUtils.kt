@@ -90,8 +90,14 @@ object FormatUtils {
         return start to end
     }
 
-    fun formatReceiptNumber(prefix: String, sequence: Int): String {
-        return "$prefix-${sequence.toString().padStart(4, '0')}"
+    fun normalizeDevicePrefix(raw: String): String {
+        val cleaned = raw.uppercase(Locale.US).filter { it.isLetterOrDigit() }.take(4)
+        return cleaned.ifBlank { "A" }
+    }
+
+    fun formatReceiptNumber(prefix: String, devicePrefix: String, sequence: Int): String {
+        val dev = normalizeDevicePrefix(devicePrefix)
+        return "$prefix-$dev-${sequence.toString().padStart(4, '0')}"
     }
 
     fun computeGrade(percentage: Double): String {

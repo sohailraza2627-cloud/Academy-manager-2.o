@@ -24,12 +24,14 @@ import com.example.ui.components.*
 import com.example.ui.theme.StatusGreenText
 import com.example.ui.viewmodel.DataLoadState
 import com.example.util.FormatUtils
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeachersScreen(
     teachersState: DataLoadState<List<Teacher>>,
     salaryPayments: List<SalaryPayment>,
+    isAdmin: Boolean = true,
     onBack: () -> Unit,
     onSaveTeacher: (Teacher) -> Unit,
     onDeleteTeacher: (Teacher) -> Unit,
@@ -38,10 +40,10 @@ fun TeachersScreen(
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showTeacherForm by rememberSaveable { mutableStateOf(false) }
-    var editingTeacherId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var detailTeacherId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var deleteTeacherId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var paySalaryTeacherId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingTeacherId by rememberSaveable { mutableStateOf<String?>(null) }
+    var detailTeacherId by rememberSaveable { mutableStateOf<String?>(null) }
+    var deleteTeacherId by rememberSaveable { mutableStateOf<String?>(null) }
+    var paySalaryTeacherId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val allTeachers = (teachersState as? DataLoadState.Success)?.data ?: emptyList()
     val editingTeacher = remember(editingTeacherId, allTeachers) { allTeachers.find { it.id == editingTeacherId } }
@@ -62,16 +64,18 @@ fun TeachersScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingTeacherId = null
-                    showTeacherForm = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("add_teacher_fab")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_teacher))
+            if (isAdmin) {
+                FloatingActionButton(
+                    onClick = {
+                        editingTeacherId = null
+                        showTeacherForm = true
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.testTag("add_teacher_fab")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_teacher))
+                }
             }
         }
     ) { innerPadding ->
@@ -139,11 +143,13 @@ fun TeachersScreen(
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
-                                        FilledTonalButton(
-                                            onClick = { paySalaryTeacherId = teacher.id },
-                                            modifier = Modifier.heightIn(min = 44.dp)
-                                        ) {
-                                            Text(stringResource(R.string.record_salary_payment))
+                                        if (isAdmin) {
+                                            FilledTonalButton(
+                                                onClick = { paySalaryTeacherId = teacher.id },
+                                                modifier = Modifier.heightIn(min = 44.dp)
+                                            ) {
+                                                Text(stringResource(R.string.record_salary_payment))
+                                            }
                                         }
                                     }
                                 }
@@ -193,31 +199,35 @@ fun TeachersScreen(
                             Text("${detailTeacher.subject} · ${FormatUtils.formatCurrency(detailTeacher.salary)}", style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    Row {
-                        IconButton(onClick = {
-                            editingTeacherId = detailTeacher.id
-                            detailTeacherId = null
-                            showTeacherForm = true
-                        }) {
-                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_teacher))
-                        }
-                        IconButton(onClick = {
-                            deleteTeacherId = detailTeacher.id
-                            detailTeacherId = null
-                        }) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                    if (isAdmin) {
+                        Row {
+                            IconButton(onClick = {
+                                editingTeacherId = detailTeacher.id
+                                detailTeacherId = null
+                                showTeacherForm = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_teacher))
+                            }
+                            IconButton(onClick = {
+                                deleteTeacherId = detailTeacher.id
+                                detailTeacherId = null
+                            }) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
 
-                Button(
-                    onClick = {
-                        paySalaryTeacherId = detailTeacher.id
-                        detailTeacherId = null
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.record_salary_payment))
+                if (isAdmin) {
+                    Button(
+                        onClick = {
+                            paySalaryTeacherId = detailTeacher.id
+                            detailTeacherId = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.record_salary_payment))
+                    }
                 }
 
                 SectionHeader(title = stringResource(R.string.salary_records))
@@ -252,8 +262,10 @@ fun TeachersScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    IconButton(onClick = { onDeleteSalary(pay) }) {
-                                        Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete))
+                                    if (isAdmin) {
+                                        IconButton(onClick = { onDeleteSalary(pay) }) {
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete))
+                                        }
                                     }
                                 }
                             }
@@ -380,7 +392,7 @@ private fun TeacherFormDialog(
                     if (valid && sal != null) {
                         onSave(
                             Teacher(
-                                id = initial?.id ?: 0L,
+                                id = initial?.id ?: UUID.randomUUID().toString(),
                                 name = name.trim(),
                                 subject = subject.trim(),
                                 phone = phone.trim(),

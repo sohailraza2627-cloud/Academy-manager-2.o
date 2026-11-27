@@ -26,7 +26,8 @@ fun MoreScreen(
     onOpenExams: () -> Unit,
     onOpenLedger: () -> Unit,
     onOpenReports: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenAssistant: () -> Unit = {}
 ) {
     LazyColumn(
         modifier = Modifier
@@ -94,6 +95,14 @@ fun MoreScreen(
         }
         item {
             GoogleCard(contentPadding = PaddingValues(0.dp)) {
+                MoreRowItem(
+                    icon = Icons.Default.AutoAwesome,
+                    title = stringResource(R.string.assistant_title),
+                    subtitle = stringResource(R.string.assistant_card_subtitle),
+                    onClick = onOpenAssistant,
+                    testTag = "more_assistant"
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 MoreRowItem(
                     icon = Icons.Default.Settings,
                     title = stringResource(R.string.settings_title),

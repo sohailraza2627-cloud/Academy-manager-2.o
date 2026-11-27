@@ -43,23 +43,25 @@ private sealed interface ActiveCollectTarget {
 @Composable
 fun FeesScreen(
     initialTab: Int = 0,
+    isAdmin: Boolean = true,
     feeChargesState: DataLoadState<List<FeeCharge>>,
     students: List<Student>,
     classes: List<AcademyClass>,
     exams: List<Exam>,
     profile: AcademyProfile,
-    onGenerateMonthlyTuition: (monthKey: String, classId: Long?, onDone: (Int, Int) -> Unit) -> Unit,
-    onCreatePaperFeeBatch: (classId: Long, title: String, amount: Long, dueDate: Long, onDone: (Int, Int) -> Unit) -> Unit,
-    onCreateOtherFee: (studentId: Long, subType: String, title: String, amount: Long, discount: Long, dueDate: Long) -> Unit,
-    onCollectTuitionFifo: (studentId: Long, targetChargeId: Long?, amount: Long, discount: Long, paidDate: Long, notes: String, onSuccess: (ReceiptResult) -> Unit, onError: (String) -> Unit) -> Unit,
-    onCollectSingleCharge: (chargeId: Long, amount: Long, discount: Long, paidDate: Long, notes: String, onSuccess: (ReceiptResult) -> Unit, onError: (String) -> Unit) -> Unit,
+    onGenerateMonthlyTuition: (monthKey: String, classId: String?, onDone: (Int, Int) -> Unit) -> Unit,
+    onCreatePaperFeeBatch: (classId: String, title: String, amount: Long, dueDate: Long, onDone: (Int, Int) -> Unit) -> Unit,
+    onCreateOtherFee: (studentId: String, subType: String, title: String, amount: Long, discount: Long, dueDate: Long) -> Unit,
+    onCollectTuitionFifo: (studentId: String, targetChargeId: String?, amount: Long, discount: Long, paidDate: Long, notes: String, onSuccess: (ReceiptResult) -> Unit, onError: (String) -> Unit) -> Unit,
+    onCollectSingleCharge: (chargeId: String, amount: Long, discount: Long, paidDate: Long, notes: String, onSuccess: (ReceiptResult) -> Unit, onError: (String) -> Unit) -> Unit,
     onDeleteCharge: (FeeCharge) -> Unit,
-    onShowMessage: (String) -> Unit
+    onShowMessage: (String) -> Unit,
+    onSendFeeWhatsApp: (student: Student, tuitionPending: Long, paperPending: Long, otherPending: Long) -> Unit = { _, _, _, _ -> }
 ) {
     var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab) }
     var selectedMonthKey by rememberSaveable { mutableStateOf(FormatUtils.currentMonthKey()) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedClassId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedClassId by rememberSaveable { mutableStateOf<String?>(null) }
     var paperPendingOnly by rememberSaveable { mutableStateOf(true) }
     var defaulterLedgerTab by rememberSaveable { mutableIntStateOf(0) } // 0 Tuition, 1 Paper, 2 Other
 
@@ -99,8 +101,17 @@ fun FeesScreen(
             is DataLoadState.Success -> {
                 val allCharges = feeChargesState.data
 
+                fun triggerWhatsAppForStudent(student: Student) {
+                    val stCharges = allCharges.filter { it.studentId == student.id }
+                    val tDue = stCharges.filter { it.ledgerType == FeeLedgerType.TUITION }.sumOf { it.remainingAmount }
+                    val pDue = stCharges.filter { it.ledgerType == FeeLedgerType.PAPER_FEE }.sumOf { it.remainingAmount }
+                    val oDue = stCharges.filter { it.ledgerType == FeeLedgerType.OTHER }.sumOf { it.remainingAmount }
+                    onSendFeeWhatsApp(student, tDue, pDue, oDue)
+                }
+
                 when (selectedTab) {
                     0 -> TuitionLedgerTab(
+                        isAdmin = isAdmin,
                         allCharges = allCharges,
                         students = students,
                         studentMap = studentMap,
@@ -113,16 +124,16 @@ fun FeesScreen(
                         onSearchChange = { searchQuery = it },
                         onClassFilterChange = { selectedClassId = it },
                         onGenerateMonthlyFees = {
-                            onGenerateMonthlyTuition(selectedMonthKey, selectedClassId) { created, skipped ->
-                                // message handled by caller
-                            }
+                            onGenerateMonthlyTuition(selectedMonthKey, selectedClassId) { _, _ -> }
                         },
                         onCollectClick = { student, charge, arrears ->
                             activeCollectTarget = ActiveCollectTarget.Tuition(student, charge, arrears)
-                        }
+                        },
+                        onWhatsAppClick = ::triggerWhatsAppForStudent
                     )
 
                     1 -> PaperFeeLedgerTab(
+                        isAdmin = isAdmin,
                         allCharges = allCharges,
                         studentMap = studentMap,
                         classes = classes,
@@ -136,10 +147,12 @@ fun FeesScreen(
                         onCreatePaperFeesClick = { showPaperFeeCreateDialog = true },
                         onCollectClick = { student, charge ->
                             activeCollectTarget = ActiveCollectTarget.SingleCharge(student, charge)
-                        }
+                        },
+                        onWhatsAppClick = ::triggerWhatsAppForStudent
                     )
 
                     2 -> OtherFeesLedgerTab(
+                        isAdmin = isAdmin,
                         allCharges = allCharges,
                         studentMap = studentMap,
                         classMap = classMap,
@@ -149,10 +162,12 @@ fun FeesScreen(
                         onCollectClick = { student, charge ->
                             activeCollectTarget = ActiveCollectTarget.SingleCharge(student, charge)
                         },
-                        onDeleteCharge = onDeleteCharge
+                        onDeleteCharge = onDeleteCharge,
+                        onWhatsAppClick = ::triggerWhatsAppForStudent
                     )
 
                     3 -> DefaultersTab(
+                        isAdmin = isAdmin,
                         allCharges = allCharges,
                         studentMap = studentMap,
                         classMap = classMap,
@@ -163,7 +178,8 @@ fun FeesScreen(
                         },
                         onCollectSingle = { student, charge ->
                             activeCollectTarget = ActiveCollectTarget.SingleCharge(student, charge)
-                        }
+                        },
+                        onWhatsAppClick = ::triggerWhatsAppForStudent
                     )
                 }
             }
@@ -260,19 +276,21 @@ fun FeesScreen(
 
 @Composable
 private fun TuitionLedgerTab(
+    isAdmin: Boolean,
     allCharges: List<FeeCharge>,
     students: List<Student>,
-    studentMap: Map<Long, Student>,
+    studentMap: Map<String, Student>,
     classes: List<AcademyClass>,
-    classMap: Map<Long, AcademyClass>,
+    classMap: Map<String, AcademyClass>,
     monthKey: String,
     searchQuery: String,
-    selectedClassId: Long?,
+    selectedClassId: String?,
     onMonthChange: (String) -> Unit,
     onSearchChange: (String) -> Unit,
-    onClassFilterChange: (Long?) -> Unit,
+    onClassFilterChange: (String?) -> Unit,
     onGenerateMonthlyFees: () -> Unit,
-    onCollectClick: (Student, FeeCharge, Long) -> Unit
+    onCollectClick: (Student, FeeCharge, Long) -> Unit,
+    onWhatsAppClick: (Student) -> Unit
 ) {
     val tuitionCharges = remember(allCharges) {
         allCharges.filter { it.ledgerType == FeeLedgerType.TUITION }
@@ -314,13 +332,15 @@ private fun TuitionLedgerTab(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 MonthSwitcher(monthKey = monthKey, onMonthChange = onMonthChange)
-                Button(
-                    onClick = onGenerateMonthlyFees,
-                    modifier = Modifier.testTag("generate_monthly_fees_btn")
-                ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.generate_monthly_fees), maxLines = 1)
+                if (isAdmin) {
+                    Button(
+                        onClick = onGenerateMonthlyFees,
+                        modifier = Modifier.testTag("generate_monthly_fees_btn")
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.generate_monthly_fees), maxLines = 1)
+                    }
                 }
             }
         }
@@ -416,13 +436,25 @@ private fun TuitionLedgerTab(
                             }
                         }
                         if (totalPayable > 0L) {
-                            FilledTonalButton(
-                                onClick = { onCollectClick(student, charge, arrears) },
-                                modifier = Modifier
-                                    .heightIn(min = 44.dp)
-                                    .testTag("collect_tuition_${charge.id}")
+                            IconButton(
+                                onClick = { onWhatsAppClick(student) },
+                                modifier = Modifier.testTag("tuition_wa_${charge.id}")
                             ) {
-                                Text(stringResource(R.string.collect))
+                                Icon(
+                                    imageVector = Icons.Default.Chat,
+                                    contentDescription = stringResource(R.string.wa_send_fee_reminder),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            if (isAdmin) {
+                                FilledTonalButton(
+                                    onClick = { onCollectClick(student, charge, arrears) },
+                                    modifier = Modifier
+                                        .heightIn(min = 44.dp)
+                                        .testTag("collect_tuition_${charge.id}")
+                                ) {
+                                    Text(stringResource(R.string.collect))
+                                }
                             }
                         }
                     }
@@ -434,18 +466,20 @@ private fun TuitionLedgerTab(
 
 @Composable
 private fun PaperFeeLedgerTab(
+    isAdmin: Boolean,
     allCharges: List<FeeCharge>,
-    studentMap: Map<Long, Student>,
+    studentMap: Map<String, Student>,
     classes: List<AcademyClass>,
-    classMap: Map<Long, AcademyClass>,
+    classMap: Map<String, AcademyClass>,
     searchQuery: String,
-    selectedClassId: Long?,
+    selectedClassId: String?,
     pendingOnly: Boolean,
     onSearchChange: (String) -> Unit,
-    onClassFilterChange: (Long?) -> Unit,
+    onClassFilterChange: (String?) -> Unit,
     onPendingToggle: () -> Unit,
     onCreatePaperFeesClick: () -> Unit,
-    onCollectClick: (Student, FeeCharge) -> Unit
+    onCollectClick: (Student, FeeCharge) -> Unit,
+    onWhatsAppClick: (Student) -> Unit
 ) {
     // Strictly ONLY PAPER_FEE ledger! Never mixed with tuition.
     val paperCharges = remember(allCharges) {
@@ -474,17 +508,19 @@ private fun PaperFeeLedgerTab(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        item {
-            Button(
-                onClick = onCreatePaperFeesClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .testTag("create_paper_fees_btn")
-            ) {
-                Icon(Icons.Default.PostAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.create_paper_fee_charges))
+        if (isAdmin) {
+            item {
+                Button(
+                    onClick = onCreatePaperFeesClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .testTag("create_paper_fees_btn")
+                ) {
+                    Icon(Icons.Default.PostAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.create_paper_fee_charges))
+                }
             }
         }
 
@@ -580,13 +616,25 @@ private fun PaperFeeLedgerTab(
                             )
                         }
                         if (charge.remainingAmount > 0L) {
-                            FilledTonalButton(
-                                onClick = { onCollectClick(student, charge) },
-                                modifier = Modifier
-                                    .heightIn(min = 44.dp)
-                                    .testTag("collect_paper_${charge.id}")
+                            IconButton(
+                                onClick = { onWhatsAppClick(student) },
+                                modifier = Modifier.testTag("paper_wa_${charge.id}")
                             ) {
-                                Text(stringResource(R.string.collect))
+                                Icon(
+                                    imageVector = Icons.Default.Chat,
+                                    contentDescription = stringResource(R.string.wa_send_fee_reminder),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            if (isAdmin) {
+                                FilledTonalButton(
+                                    onClick = { onCollectClick(student, charge) },
+                                    modifier = Modifier
+                                        .heightIn(min = 44.dp)
+                                        .testTag("collect_paper_${charge.id}")
+                                ) {
+                                    Text(stringResource(R.string.collect))
+                                }
                             }
                         }
                     }
@@ -598,14 +646,16 @@ private fun PaperFeeLedgerTab(
 
 @Composable
 private fun OtherFeesLedgerTab(
+    isAdmin: Boolean,
     allCharges: List<FeeCharge>,
-    studentMap: Map<Long, Student>,
-    classMap: Map<Long, AcademyClass>,
+    studentMap: Map<String, Student>,
+    classMap: Map<String, AcademyClass>,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     onAddOtherFeeClick: () -> Unit,
     onCollectClick: (Student, FeeCharge) -> Unit,
-    onDeleteCharge: (FeeCharge) -> Unit
+    onDeleteCharge: (FeeCharge) -> Unit,
+    onWhatsAppClick: (Student) -> Unit
 ) {
     val otherCharges = remember(allCharges, searchQuery, studentMap) {
         val q = searchQuery.trim().lowercase()
@@ -623,17 +673,19 @@ private fun OtherFeesLedgerTab(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        item {
-            Button(
-                onClick = onAddOtherFeeClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .testTag("add_other_fee_btn")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.add_custom_fee))
+        if (isAdmin) {
+            item {
+                Button(
+                    onClick = onAddOtherFeeClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .testTag("add_other_fee_btn")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.add_custom_fee))
+                }
             }
         }
         item {
@@ -697,10 +749,22 @@ private fun OtherFeesLedgerTab(
                             )
                         }
                         if (charge.remainingAmount > 0L) {
-                            FilledTonalButton(onClick = { onCollectClick(student, charge) }) {
-                                Text(stringResource(R.string.collect))
+                            IconButton(
+                                onClick = { onWhatsAppClick(student) },
+                                modifier = Modifier.testTag("other_wa_${charge.id}")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Chat,
+                                    contentDescription = stringResource(R.string.wa_send_fee_reminder),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             }
-                        } else {
+                            if (isAdmin) {
+                                FilledTonalButton(onClick = { onCollectClick(student, charge) }) {
+                                    Text(stringResource(R.string.collect))
+                                }
+                            }
+                        } else if (isAdmin) {
                             IconButton(onClick = { onDeleteCharge(charge) }) {
                                 Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete))
                             }
@@ -714,13 +778,15 @@ private fun OtherFeesLedgerTab(
 
 @Composable
 private fun DefaultersTab(
+    isAdmin: Boolean,
     allCharges: List<FeeCharge>,
-    studentMap: Map<Long, Student>,
-    classMap: Map<Long, AcademyClass>,
+    studentMap: Map<String, Student>,
+    classMap: Map<String, AcademyClass>,
     ledgerSegment: Int,
     onSegmentChange: (Int) -> Unit,
     onCollectTuition: (Student, FeeCharge, Long) -> Unit,
-    onCollectSingle: (Student, FeeCharge) -> Unit
+    onCollectSingle: (Student, FeeCharge) -> Unit,
+    onWhatsAppClick: (Student) -> Unit
 ) {
     val targetType = when (ledgerSegment) {
         0 -> FeeLedgerType.TUITION
@@ -800,16 +866,28 @@ private fun DefaultersTab(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                        FilledTonalButton(
-                            onClick = {
-                                if (targetType == FeeLedgerType.TUITION) {
-                                    onCollectTuition(student, latest, olderArrears)
-                                } else {
-                                    onCollectSingle(student, sorted.first())
-                                }
-                            }
+                        IconButton(
+                            onClick = { onWhatsAppClick(student) },
+                            modifier = Modifier.testTag("defaulter_wa_${student.id}")
                         ) {
-                            Text(stringResource(R.string.collect))
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = stringResource(R.string.wa_send_fee_reminder),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (isAdmin) {
+                            FilledTonalButton(
+                                onClick = {
+                                    if (targetType == FeeLedgerType.TUITION) {
+                                        onCollectTuition(student, latest, olderArrears)
+                                    } else {
+                                        onCollectSingle(student, sorted.first())
+                                    }
+                                }
+                            ) {
+                                Text(stringResource(R.string.collect))
+                            }
                         }
                     }
                 }
@@ -847,9 +925,9 @@ private fun CreatePaperFeeDialog(
     classes: List<AcademyClass>,
     exams: List<Exam>,
     onDismiss: () -> Unit,
-    onCreate: (classId: Long, title: String, amount: Long, dueDate: Long) -> Unit
+    onCreate: (classId: String, title: String, amount: Long, dueDate: Long) -> Unit
 ) {
-    var selectedClassId by rememberSaveable { mutableStateOf(classes.firstOrNull()?.id ?: 0L) }
+    var selectedClassId by rememberSaveable { mutableStateOf(classes.firstOrNull()?.id ?: "") }
     var paperTitle by rememberSaveable { mutableStateOf("") }
     var amountStr by rememberSaveable { mutableStateOf("") }
     var dueDate by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
@@ -955,7 +1033,7 @@ private fun CreatePaperFeeDialog(
                         if (paperTitle.isBlank()) { titleError = requiredMsg; valid = false }
                         val amt = amountStr.trim().toLongOrNull()
                         if (amt == null || amt <= 0L) { amountError = invalidAmountMsg; valid = false }
-                        if (valid && amt != null && selectedClassId != 0L) {
+                        if (valid && amt != null && selectedClassId.isNotBlank()) {
                             onCreate(selectedClassId, paperTitle.trim(), amt, dueDate)
                         }
                     },
@@ -975,11 +1053,11 @@ private fun CreatePaperFeeDialog(
 @Composable
 private fun CreateOtherFeeDialog(
     students: List<Student>,
-    classMap: Map<Long, AcademyClass>,
+    classMap: Map<String, AcademyClass>,
     onDismiss: () -> Unit,
-    onCreate: (studentId: Long, subType: String, title: String, amount: Long, discount: Long, dueDate: Long) -> Unit
+    onCreate: (studentId: String, subType: String, title: String, amount: Long, discount: Long, dueDate: Long) -> Unit
 ) {
-    var selectedStudentId by rememberSaveable { mutableStateOf(students.firstOrNull()?.id ?: 0L) }
+    var selectedStudentId by rememberSaveable { mutableStateOf(students.firstOrNull()?.id ?: "") }
     var isAdmission by rememberSaveable { mutableStateOf(true) }
     var customTitle by rememberSaveable { mutableStateOf("") }
     var amountStr by rememberSaveable { mutableStateOf("") }
@@ -1099,7 +1177,7 @@ private fun CreateOtherFeeDialog(
                         if (amt == null || amt <= 0L || disc == null || disc < 0L || disc > amt) {
                             amountError = invalidAmountMsg; valid = false
                         }
-                        if (valid && amt != null && disc != null && selectedStudentId != 0L) {
+                        if (valid && amt != null && disc != null && selectedStudentId.isNotBlank()) {
                             onCreate(
                                 selectedStudentId,
                                 if (isAdmission) "Admission Fee" else "Custom Fee",

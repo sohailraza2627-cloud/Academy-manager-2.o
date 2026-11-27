@@ -1,9 +1,9 @@
 package com.example.data.local
 
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.UUID
 
 object StudentStatus {
     const val ACTIVE = "ACTIVE"
@@ -33,163 +33,148 @@ object LedgerType {
     const val EXPENSE = "EXPENSE"
 }
 
+object UserRole {
+    const val ADMIN = "ADMIN"
+    const val TEACHER = "TEACHER"
+}
+
 @Entity(tableName = "academy_profile")
 data class AcademyProfile(
-    @PrimaryKey val id: Int = 1,
+    @PrimaryKey val id: String = PROFILE_ID,
     val academyName: String = "My Academy",
     val tagline: String = "",
     val phone: String = "",
     val address: String = "",
     val logoPath: String? = null,
-    val nextTuitionReceiptSeq: Int = 1,
-    val nextPaperReceiptSeq: Int = 1
-)
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
+) {
+    companion object {
+        const val PROFILE_ID = "academy_profile"
+    }
+}
 
 @Entity(tableName = "classes")
 data class AcademyClass(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val name: String,
     val monthlyFee: Long,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(
     tableName = "subjects",
-    foreignKeys = [
-        ForeignKey(
-            entity = AcademyClass::class,
-            parentColumns = ["id"],
-            childColumns = ["classId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [Index("classId")]
 )
 data class Subject(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val classId: Long,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val classId: String,
     val name: String,
-    val totalMarks: Int = 100
+    val totalMarks: Int = 100,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(
     tableName = "timetable_entries",
-    foreignKeys = [
-        ForeignKey(
-            entity = AcademyClass::class,
-            parentColumns = ["id"],
-            childColumns = ["classId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [Index("classId")]
 )
 data class TimetableEntry(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val classId: Long,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val classId: String,
     val dayOfWeek: Int, // 1=Mon .. 6=Sat
     val subjectName: String,
     val teacherName: String,
     val startTime: String,
-    val endTime: String
+    val endTime: String,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(
     tableName = "students",
-    foreignKeys = [
-        ForeignKey(
-            entity = AcademyClass::class,
-            parentColumns = ["id"],
-            childColumns = ["classId"],
-            onDelete = ForeignKey.RESTRICT
-        )
-    ],
     indices = [Index("classId")]
 )
 data class Student(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val name: String,
     val fatherName: String,
     val phone: String,
     val address: String,
-    val classId: Long,
+    val classId: String,
     val rollNo: String,
     val admissionDate: Long,
     val photoPath: String? = null,
+    val guardianWhatsapp: String = "",
+    val whatsappHistory: String = "",
     val monthlyDiscount: Long = 0L,
     val status: String = StudentStatus.ACTIVE,
     val leftDate: Long? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(tableName = "teachers")
 data class Teacher(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val name: String,
     val subject: String,
     val phone: String,
     val salary: Long,
     val joiningDate: Long,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(
     tableName = "salary_payments",
-    foreignKeys = [
-        ForeignKey(
-            entity = Teacher::class,
-            parentColumns = ["id"],
-            childColumns = ["teacherId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [Index("teacherId"), Index("monthKey")]
 )
 data class SalaryPayment(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val teacherId: Long,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val teacherId: String,
     val monthKey: String,
     val amount: Long,
     val paidDate: Long,
-    val notes: String = ""
+    val notes: String = "",
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(
     tableName = "attendance_records",
-    foreignKeys = [
-        ForeignKey(
-            entity = Student::class,
-            parentColumns = ["id"],
-            childColumns = ["studentId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
-        Index(value = ["studentId", "dateKey"], unique = true),
+        Index("studentId"),
         Index("classId"),
         Index("dateKey"),
         Index("monthKey")
     ]
 )
 data class AttendanceRecord(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val studentId: Long,
-    val classId: Long,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val studentId: String,
+    val classId: String,
     val dateKey: String, // yyyy-MM-dd
     val monthKey: String, // yyyy-MM
-    val status: String
+    val status: String,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(
     tableName = "fee_charges",
-    foreignKeys = [
-        ForeignKey(
-            entity = Student::class,
-            parentColumns = ["id"],
-            childColumns = ["studentId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
         Index("studentId"),
         Index("classId"),
@@ -198,36 +183,34 @@ data class AttendanceRecord(
     ]
 )
 data class FeeCharge(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val studentId: Long,
-    val classId: Long,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val studentId: String,
+    val classId: String,
     val ledgerType: String, // TUITION, PAPER_FEE, OTHER
-    val feeSubType: String, // Monthly Tuition, Exam/Paper title, Admission Fee, Custom
+    val feeSubType: String,
     val title: String,
     val monthKey: String? = null, // yyyy-MM
-    val batchKey: String? = null, // unique batch key to prevent duplicate paper fee creation
+    val batchKey: String? = null,
     val baseAmount: Long,
     val discountAmount: Long = 0L,
     val netAmount: Long,
     val paidAmount: Long = 0L,
     val status: String = FeeStatus.UNPAID,
     val dueDate: Long,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 ) {
     val remainingAmount: Long
         get() = (netAmount - paidAmount).coerceAtLeast(0L)
 }
 
+/**
+ * Append-only payment/receipt record. Never edited or overwritten.
+ */
 @Entity(
     tableName = "fee_payments",
-    foreignKeys = [
-        ForeignKey(
-            entity = FeeCharge::class,
-            parentColumns = ["id"],
-            childColumns = ["chargeId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
         Index("chargeId"),
         Index("studentId"),
@@ -237,21 +220,24 @@ data class FeeCharge(
     ]
 )
 data class FeePayment(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val chargeId: Long,
-    val studentId: Long,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val chargeId: String,
+    val studentId: String,
     val ledgerType: String, // TUITION, PAPER_FEE, OTHER
-    val receiptNumber: String, // R-0001 for Tuition/Other, PF-0001 for Paper Fee
+    val receiptNumber: String, // e.g. R-A-0001 for Tuition/Other, PF-A-0001 for Paper Fee
     val amountPaid: Long,
     val discountApplied: Long = 0L,
     val paidDate: Long,
     val monthKey: String, // yyyy-MM of payment date
-    val notes: String = ""
+    val notes: String = "",
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(tableName = "ledger_entries")
 data class LedgerEntry(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val type: String, // INCOME or EXPENSE
     val category: String,
     val title: String,
@@ -259,62 +245,52 @@ data class LedgerEntry(
     val date: Long,
     val monthKey: String,
     val notes: String = "",
-    val linkedSalaryPaymentId: Long? = null
+    val linkedSalaryPaymentId: String? = null,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(
     tableName = "exams",
-    foreignKeys = [
-        ForeignKey(
-            entity = AcademyClass::class,
-            parentColumns = ["id"],
-            childColumns = ["classId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [Index("classId")]
 )
 data class Exam(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val classId: Long,
+    val classId: String,
     val examDate: Long,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
 )
 
 @Entity(
     tableName = "exam_marks",
-    foreignKeys = [
-        ForeignKey(
-            entity = Exam::class,
-            parentColumns = ["id"],
-            childColumns = ["examId"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = Student::class,
-            parentColumns = ["id"],
-            childColumns = ["studentId"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = Subject::class,
-            parentColumns = ["id"],
-            childColumns = ["subjectId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
-        Index(value = ["examId", "studentId", "subjectId"], unique = true),
+        Index("examId"),
         Index("studentId"),
         Index("subjectId")
     ]
 )
 data class ExamMark(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val examId: Long,
-    val studentId: Long,
-    val subjectId: Long,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val examId: String,
+    val studentId: String,
+    val subjectId: String,
     val marksObtained: Double,
-    val totalMarks: Int
+    val totalMarks: Int,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val pendingSync: Boolean = true
+)
+
+@Entity(tableName = "academy_members")
+data class AcademyMember(
+    @PrimaryKey val uid: String,
+    val email: String,
+    val name: String,
+    val role: String, // ADMIN or TEACHER
+    val createdAt: Long = System.currentTimeMillis()
 )

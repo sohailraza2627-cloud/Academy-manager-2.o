@@ -28,6 +28,7 @@ import com.example.data.local.Subject
 import com.example.ui.components.EmptyStateView
 import com.example.ui.components.GoogleCard
 import com.example.util.FormatUtils
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,14 +36,15 @@ fun ClassesScreen(
     classes: List<AcademyClass>,
     students: List<Student>,
     subjects: List<Subject>,
+    isAdmin: Boolean = true,
     onBack: () -> Unit,
-    onClassClick: (Long) -> Unit,
+    onClassClick: (String) -> Unit,
     onSaveClass: (AcademyClass) -> Unit,
     onDeleteClass: (AcademyClass) -> Unit
 ) {
     var showForm by rememberSaveable { mutableStateOf(false) }
-    var editingClassId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var deleteClassId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingClassId by rememberSaveable { mutableStateOf<String?>(null) }
+    var deleteClassId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val editingClass = remember(editingClassId, classes) { classes.find { it.id == editingClassId } }
     val deleteClass = remember(deleteClassId, classes) { classes.find { it.id == deleteClassId } }
@@ -60,16 +62,18 @@ fun ClassesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingClassId = null
-                    showForm = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("add_class_fab")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_class))
+            if (isAdmin) {
+                FloatingActionButton(
+                    onClick = {
+                        editingClassId = null
+                        showForm = true
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.testTag("add_class_fab")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_class))
+                }
             }
         }
     ) { innerPadding ->
@@ -112,21 +116,23 @@ fun ClassesScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Row {
-                                IconButton(
-                                    onClick = {
-                                        editingClassId = cls.id
-                                        showForm = true
+                            if (isAdmin) {
+                                Row {
+                                    IconButton(
+                                        onClick = {
+                                            editingClassId = cls.id
+                                            showForm = true
+                                        }
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_class))
                                     }
-                                ) {
-                                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_class))
-                                }
-                                IconButton(onClick = { deleteClassId = cls.id }) {
-                                    Icon(
-                                        Icons.Default.DeleteOutline,
-                                        contentDescription = stringResource(R.string.delete),
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
+                                    IconButton(onClick = { deleteClassId = cls.id }) {
+                                        Icon(
+                                            Icons.Default.DeleteOutline,
+                                            contentDescription = stringResource(R.string.delete),
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -224,7 +230,7 @@ private fun ClassFormDialog(
                     if (valid && fee != null) {
                         onSave(
                             AcademyClass(
-                                id = initial?.id ?: 0L,
+                                id = initial?.id ?: UUID.randomUUID().toString(),
                                 name = name.trim(),
                                 monthlyFee = fee,
                                 createdAt = initial?.createdAt ?: System.currentTimeMillis()

@@ -17,12 +17,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.data.ai.AiTextResult
+import com.example.data.ai.LocalTemplateAiEngine
+import com.example.data.ai.ParentMessageRequest
+import com.example.data.ai.StudentSummaryRequest
 import com.example.data.local.*
 import com.example.data.repository.ReceiptResult
 import com.example.data.repository.StudentExamResult
 import com.example.ui.components.*
 import com.example.util.FormatUtils
 import com.example.util.PdfAndCsvExporter
+import com.example.util.WhatsAppHelper
+import com.example.util.WhatsAppMessageType
+import kotlinx.coroutines.runBlocking
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,6 +44,12 @@ fun StudentDetailScreen(
     feeCharges: List<FeeCharge>,
     feePayments: List<FeePayment>,
     profile: AcademyProfile,
+    isAdmin: Boolean = true,
+    aiEnabled: Boolean = false,
+    onSummarizeStudent: suspend (StudentSummaryRequest, Boolean) -> AiTextResult = { req, _ ->
+        LocalTemplateAiEngine().summarizeStudent(req)
+    },
+    onSendWhatsAppRequest: (Student, ParentMessageRequest) -> Unit = { _, _ -> },
     onBack: () -> Unit,
     onSaveStudent: (Student) -> Unit,
     onSetStatus: (Student, String) -> Unit,
@@ -50,6 +63,17 @@ fun StudentDetailScreen(
     var selectedMonthKey by rememberSaveable { mutableStateOf(FormatUtils.currentMonthKey()) }
 
     val classObj = remember(student, classes) { classes.find { it.id == student?.classId } }
+    val className = classObj?.name ?: ""
+
+    val tuitionPending = remember(feeCharges) {
+        feeCharges.filter { it.ledgerType == FeeLedgerType.TUITION }.sumOf { it.remainingAmount }
+    }
+    val paperPending = remember(feeCharges) {
+        feeCharges.filter { it.ledgerType == FeeLedgerType.PAPER_FEE }.sumOf { it.remainingAmount }
+    }
+    val otherPending = remember(feeCharges) {
+        feeCharges.filter { it.ledgerType == FeeLedgerType.OTHER }.sumOf { it.remainingAmount }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -62,7 +86,7 @@ fun StudentDetailScreen(
                     }
                 },
                 actions = {
-                    if (student != null) {
+                    if (student != null && isAdmin) {
                         IconButton(
                             onClick = { showEditDialog = true },
                             modifier = Modifier.testTag("student_detail_edit")
@@ -89,6 +113,21 @@ fun StudentDetailScreen(
             return@Scaffold
         }
 
+        val triggerFeeReminder = {
+            onSendWhatsAppRequest(
+                student,
+                ParentMessageRequest(
+                    type = WhatsAppMessageType.FEE_REMINDER,
+                    academyName = profile.academyName,
+                    studentName = student.name,
+                    className = className,
+                    tuitionPending = tuitionPending,
+                    paperFeePending = paperPending,
+                    otherFeePending = otherPending
+                )
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -112,16 +151,59 @@ fun StudentDetailScreen(
             }
 
             when (selectedTab) {
-                0 -> ProfileTab(
-                    student = student,
-                    className = classObj?.name ?: "",
-                    monthlyClassFee = classObj?.monthlyFee ?: 0L,
-                    onToggleStatus = {
-                        val next = if (student.status == StudentStatus.LEFT) StudentStatus.ACTIVE else StudentStatus.LEFT
-                        onSetStatus(student, next)
-                    },
-                    onDeleteClick = { showDeleteConfirm = true }
-                )
+                0 -> {
+                    val classSubjects = remember(subjects, student.classId) {
+                        subjects.filter { it.classId == student.classId }
+                    }
+                    val classStudents = remember(allStudents, student.classId) {
+                        allStudents.filter { it.classId == student.classId }
+                    }
+                    val recentExams = remember(exams, allExamMarks, classStudents, classSubjects, student.id) {
+                        exams.filter { it.classId == student.classId }
+                            .sortedByDescending { it.examDate }
+                            .mapNotNull { exam ->
+                                val marks = allExamMarks.filter { it.examId == exam.id }
+                                val mine = computeExamResults(classStudents, classSubjects, marks)
+                                    .find { it.student.id == student.id }
+                                mine?.let {
+                                    "${exam.name}: ${FormatUtils.formatMarks(it.obtainedTotal)}/${it.maxTotal} (${FormatUtils.formatPercent(it.percentage)})"
+                                }
+                            }
+                    }
+                    val summaryRequest = remember(student, className, attendanceRecords, recentExams, tuitionPending, paperPending, otherPending, profile.academyName) {
+                        StudentSummaryRequest(
+                            academyName = profile.academyName,
+                            studentName = student.name,
+                            className = className,
+                            status = student.status,
+                            presentDays = attendanceRecords.count { it.status == AttendanceStatus.PRESENT },
+                            absentDays = attendanceRecords.count { it.status == AttendanceStatus.ABSENT },
+                            leaveDays = attendanceRecords.count { it.status == AttendanceStatus.LEAVE },
+                            recentExamsSummary = recentExams,
+                            tuitionPending = tuitionPending,
+                            paperFeePending = paperPending,
+                            otherFeePending = otherPending
+                        )
+                    }
+                    ProfileTab(
+                        student = student,
+                        className = className,
+                        monthlyClassFee = classObj?.monthlyFee ?: 0L,
+                        tuitionPending = tuitionPending,
+                        paperPending = paperPending,
+                        otherPending = otherPending,
+                        summaryRequest = summaryRequest,
+                        aiEnabled = aiEnabled,
+                        onSummarizeStudent = onSummarizeStudent,
+                        onSendFeeReminder = triggerFeeReminder,
+                        isAdmin = isAdmin,
+                        onToggleStatus = {
+                            val next = if (student.status == StudentStatus.LEFT) StudentStatus.ACTIVE else StudentStatus.LEFT
+                            onSetStatus(student, next)
+                        },
+                        onDeleteClick = { showDeleteConfirm = true }
+                    )
+                }
 
                 1 -> AttendanceTab(
                     records = attendanceRecords,
@@ -131,10 +213,13 @@ fun StudentDetailScreen(
 
                 2 -> FeesTab(
                     student = student,
-                    className = classObj?.name ?: "",
+                    className = className,
                     charges = feeCharges,
                     payments = feePayments,
-                    profile = profile,
+                    tuitionPending = tuitionPending,
+                    paperPending = paperPending,
+                    otherPending = otherPending,
+                    onSendFeeReminder = triggerFeeReminder,
                     onShareReceipt = { receipt ->
                         val pdf = PdfAndCsvExporter.generateReceiptPdf(context, profile, receipt)
                         PdfAndCsvExporter.shareFile(
@@ -148,19 +233,36 @@ fun StudentDetailScreen(
 
                 3 -> ResultsTab(
                     student = student,
-                    className = classObj?.name ?: "",
+                    className = className,
                     exams = exams.filter { it.classId == student.classId },
                     allStudents = allStudents,
                     subjects = subjects,
                     allExamMarks = allExamMarks,
                     computeExamResults = computeExamResults,
+                    onSendWhatsAppResult = { exam, result ->
+                        onSendWhatsAppRequest(
+                            student,
+                            ParentMessageRequest(
+                                type = WhatsAppMessageType.EXAM_RESULT,
+                                academyName = profile.academyName,
+                                studentName = student.name,
+                                className = className,
+                                subjectOrExamTitle = exam.name,
+                                dateLabel = FormatUtils.formatDate(exam.examDate),
+                                obtainedMarks = FormatUtils.formatMarks(result.obtainedTotal),
+                                totalMarks = result.maxTotal.toString(),
+                                percentageLabel = FormatUtils.formatPercent(result.percentage),
+                                grade = result.grade
+                            )
+                        )
+                    },
                     onExportPdf = { exam, result ->
                         val pdf = PdfAndCsvExporter.generateResultCardPdf(
                             context = context,
                             profile = profile,
                             examName = exam.name,
                             examDate = exam.examDate,
-                            className = classObj?.name ?: "",
+                            className = className,
                             result = result
                         )
                         PdfAndCsvExporter.shareFile(
@@ -218,9 +320,25 @@ private fun ProfileTab(
     student: Student,
     className: String,
     monthlyClassFee: Long,
+    tuitionPending: Long,
+    paperPending: Long,
+    otherPending: Long,
+    summaryRequest: StudentSummaryRequest,
+    aiEnabled: Boolean,
+    onSummarizeStudent: suspend (StudentSummaryRequest, Boolean) -> AiTextResult,
+    onSendFeeReminder: () -> Unit,
+    isAdmin: Boolean,
     onToggleStatus: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val localSummary = remember(summaryRequest) {
+        (runBlocking { LocalTemplateAiEngine().summarizeStudent(summaryRequest) } as AiTextResult.Success).text
+    }
+    val historyEntries = remember(student.whatsappHistory) {
+        WhatsAppHelper.parseHistoryEntries(student.whatsappHistory)
+    }
+    val totalPending = tuitionPending + paperPending + otherPending
+
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -264,6 +382,16 @@ private fun ProfileTab(
             GoogleCard {
                 DetailRow("Father Name", student.fatherName)
                 DetailRow("Phone", student.phone)
+                DetailRow(
+                    stringResource(R.string.guardian_whatsapp_short),
+                    student.guardianWhatsapp.ifBlank { "—" }
+                )
+                if (historyEntries.isNotEmpty()) {
+                    DetailRow(
+                        stringResource(R.string.whatsapp_previous_numbers),
+                        historyEntries.joinToString("\n")
+                    )
+                }
                 DetailRow("Address", student.address.ifBlank { "—" })
                 DetailRow("Admission Date", FormatUtils.formatDate(student.admissionDate))
                 DetailRow("Monthly Class Fee", FormatUtils.formatCurrency(monthlyClassFee))
@@ -279,32 +407,63 @@ private fun ProfileTab(
         }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            FilledTonalButton(
+                onClick = onSendFeeReminder,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .testTag("profile_whatsapp_fee_btn")
             ) {
-                OutlinedButton(
-                    onClick = onToggleStatus,
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp)
-                        .testTag("toggle_student_left_btn")
+                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (totalPending > 0L) {
+                        stringResource(R.string.wa_send_fee_reminder_amount, FormatUtils.formatCurrency(totalPending))
+                    } else {
+                        stringResource(R.string.wa_send_fee_reminder)
+                    }
+                )
+            }
+        }
+
+        item {
+            AcademySummaryCard(
+                title = stringResource(R.string.student_snapshot_title),
+                localSummaryText = localSummary,
+                aiEnabled = aiEnabled,
+                onGenerateAiSummary = { onSummarizeStudent(summaryRequest, true) }
+            )
+        }
+
+        if (isAdmin) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        stringResource(
-                            if (student.status == StudentStatus.LEFT) R.string.reactivate_student
-                            else R.string.mark_as_left
+                    OutlinedButton(
+                        onClick = onToggleStatus,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("toggle_student_left_btn")
+                    ) {
+                        Text(
+                            stringResource(
+                                if (student.status == StudentStatus.LEFT) R.string.reactivate_student
+                                else R.string.mark_as_left
+                            )
                         )
-                    )
-                }
-                OutlinedButton(
-                    onClick = onDeleteClick,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp)
-                ) {
-                    Text(stringResource(R.string.delete_student))
+                    }
+                    OutlinedButton(
+                        onClick = onDeleteClick,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                    ) {
+                        Text(stringResource(R.string.delete_student))
+                    }
                 }
             }
         }
@@ -391,7 +550,10 @@ private fun FeesTab(
     className: String,
     charges: List<FeeCharge>,
     payments: List<FeePayment>,
-    profile: AcademyProfile,
+    tuitionPending: Long,
+    paperPending: Long,
+    otherPending: Long,
+    onSendFeeReminder: () -> Unit,
     onShareReceipt: (ReceiptResult) -> Unit
 ) {
     val tuitionCharges = remember(charges) { charges.filter { it.ledgerType == FeeLedgerType.TUITION } }
@@ -402,12 +564,33 @@ private fun FeesTab(
     val groupedReceipts = remember(payments) {
         payments.groupBy { it.receiptNumber }.values.toList()
     }
+    val totalPending = tuitionPending + paperPending + otherPending
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
+        item {
+            FilledTonalButton(
+                onClick = onSendFeeReminder,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .testTag("fees_tab_whatsapp_btn")
+            ) {
+                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (totalPending > 0L) {
+                        stringResource(R.string.wa_send_fee_reminder_amount, FormatUtils.formatCurrency(totalPending))
+                    } else {
+                        stringResource(R.string.wa_send_fee_reminder)
+                    }
+                )
+            }
+        }
+
         item {
             SectionHeader(title = stringResource(R.string.tab_tuition))
             if (tuitionCharges.isEmpty()) {
@@ -532,6 +715,7 @@ private fun ResultsTab(
     subjects: List<Subject>,
     allExamMarks: List<ExamMark>,
     computeExamResults: (List<Student>, List<Subject>, List<ExamMark>) -> List<StudentExamResult>,
+    onSendWhatsAppResult: (Exam, StudentExamResult) -> Unit,
     onExportPdf: (Exam, StudentExamResult) -> Unit
 ) {
     val classSubjects = remember(subjects, student.classId) {
@@ -585,13 +769,28 @@ private fun ResultsTab(
                         fontWeight = FontWeight.Medium
                     )
                     Spacer(Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = { onExportPdf(exam, result) },
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.export_result_card))
+                        OutlinedButton(
+                            onClick = { onExportPdf(exam, result) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.export_pdf), maxLines = 1)
+                        }
+                        FilledTonalButton(
+                            onClick = { onSendWhatsAppResult(exam, result) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("result_whatsapp_${exam.id}")
+                        ) {
+                            Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.wa_short_label), maxLines = 1)
+                        }
                     }
                 }
             }

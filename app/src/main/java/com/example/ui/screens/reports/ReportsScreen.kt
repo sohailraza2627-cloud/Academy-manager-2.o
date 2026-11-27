@@ -45,14 +45,14 @@ fun ReportsScreen(
     val context = LocalContext.current
     var selectedReportIndex by rememberSaveable { mutableIntStateOf(0) }
     var monthKey by rememberSaveable { mutableStateOf(FormatUtils.currentMonthKey()) }
-    var selectedClassId by rememberSaveable { mutableStateOf(classes.firstOrNull()?.id ?: 0L) }
-    var selectedExamId by rememberSaveable { mutableStateOf(exams.firstOrNull()?.id ?: 0L) }
+    var selectedClassId by rememberSaveable { mutableStateOf(classes.firstOrNull()?.id ?: "") }
+    var selectedExamId by rememberSaveable { mutableStateOf(exams.firstOrNull()?.id ?: "") }
 
     LaunchedEffect(classes) {
-        if (selectedClassId == 0L && classes.isNotEmpty()) selectedClassId = classes.first().id
+        if (selectedClassId.isBlank() && classes.isNotEmpty()) selectedClassId = classes.first().id
     }
     LaunchedEffect(exams) {
-        if (selectedExamId == 0L && exams.isNotEmpty()) selectedExamId = exams.first().id
+        if (selectedExamId.isBlank() && exams.isNotEmpty()) selectedExamId = exams.first().id
     }
 
     val studentMap = remember(students) { students.associateBy { it.id } }
@@ -279,10 +279,10 @@ private data class ReportPayload(
 private fun buildReportPayload(
     reportIndex: Int,
     monthKey: String,
-    selectedClassId: Long,
-    selectedExamId: Long,
-    studentMap: Map<Long, Student>,
-    classMap: Map<Long, AcademyClass>,
+    selectedClassId: String,
+    selectedExamId: String,
+    studentMap: Map<String, Student>,
+    classMap: Map<String, AcademyClass>,
     students: List<Student>,
     subjects: List<Subject>,
     attendanceRecords: List<AttendanceRecord>,

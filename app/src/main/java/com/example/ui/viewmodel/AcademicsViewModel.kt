@@ -4,6 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.AcademyManagerApp
+import com.example.data.ai.AiTextResult
+import com.example.data.ai.ClassSummaryRequest
+import com.example.data.ai.ParentMessageRequest
+import com.example.data.ai.StudentSummaryRequest
 import com.example.data.local.*
 import com.example.data.repository.StudentExamResult
 import com.example.util.FormatUtils
@@ -20,6 +24,12 @@ sealed interface DataLoadState<out T> {
 class AcademicsViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as AcademyManagerApp
     private val repo get() = app.repository
+    private val aiCoordinator get() = app.aiCoordinator
+    private val prefs get() = app.preferencesRepository
+
+    val aiAssistantEnabled: StateFlow<Boolean> = prefs.aiAssistantEnabledFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), false
+    )
 
     val classes: StateFlow<List<AcademyClass>> = repo.classesFlow.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
@@ -69,8 +79,8 @@ class AcademicsViewModel(application: Application) : AndroidViewModel(applicatio
     )
 
     // Attendance Editor State
-    private val _selectedAttendanceClassId = MutableStateFlow<Long?>(null)
-    val selectedAttendanceClassId: StateFlow<Long?> = _selectedAttendanceClassId.asStateFlow()
+    private val _selectedAttendanceClassId = MutableStateFlow<String?>(null)
+    val selectedAttendanceClassId: StateFlow<String?> = _selectedAttendanceClassId.asStateFlow()
 
     private val _selectedAttendanceDateKey = MutableStateFlow(FormatUtils.currentDateKey())
     val selectedAttendanceDateKey: StateFlow<String> = _selectedAttendanceDateKey.asStateFlow()
@@ -91,7 +101,7 @@ class AcademicsViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun selectAttendanceClass(classId: Long) {
+    fun selectAttendanceClass(classId: String) {
         _selectedAttendanceClassId.value = classId
         loadAttendanceDraft()
     }
@@ -111,13 +121,13 @@ class AcademicsViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun setStudentAttendanceStatus(studentId: Long, status: String) {
+    fun setStudentAttendanceStatus(studentId: String, status: String) {
         _attendanceDraft.value = _attendanceDraft.value.map { (student, current) ->
             if (student.id == studentId) student to status else student to current
         }
     }
 
-    fun toggleStudentAttendanceStatus(studentId: Long) {
+    fun toggleStudentAttendanceStatus(studentId: String) {
         _attendanceDraft.value = _attendanceDraft.value.map { (student, current) ->
             if (student.id == studentId) {
                 val next = when (current) {
@@ -149,13 +159,14 @@ class AcademicsViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // Student operations
-    fun observeStudent(studentId: Long): Flow<Student?> = repo.observeStudent(studentId)
-    fun observeStudentAttendance(studentId: Long): Flow<List<AttendanceRecord>> = repo.observeStudentAttendance(studentId)
-    fun observeStudentExamMarks(studentId: Long): Flow<List<ExamMark>> = repo.observeStudentExamMarks(studentId)
+    fun observeStudent(studentId: String): Flow<Student?> = repo.observeStudent(studentId)
+    fun observeStudentAttendance(studentId: String): Flow<List<AttendanceRecord>> = repo.observeStudentAttendance(studentId)
+    fun observeStudentExamMarks(studentId: String): Flow<List<ExamMark>> = repo.observeStudentExamMarks(studentId)
 
     fun saveStudent(student: Student, onDone: () -> Unit) {
         viewModelScope.launch {
             repo.saveStudent(student)
+            loadAttendanceDraft()
             onDone()
         }
     }
@@ -178,8 +189,8 @@ class AcademicsViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // Class, Subject, Timetable operations
-    fun observeSubjectsByClass(classId: Long): Flow<List<Subject>> = repo.observeSubjectsByClass(classId)
-    fun observeTimetableByClass(classId: Long): Flow<List<TimetableEntry>> = repo.observeTimetableByClass(classId)
+    fun observeSubjectsByClass(classId: String): Flow<List<Subject>> = repo.observeSubjectsByClass(classId)
+    fun observeTimetableByClass(classId: String): Flow<List<TimetableEntry>> = repo.observeTimetableByClass(classId)
 
     fun saveClass(academyClass: AcademyClass, onDone: () -> Unit = {}) {
         viewModelScope.launch {
@@ -217,7 +228,7 @@ class AcademicsViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // Teacher & Salary operations
-    fun observeTeacherSalaries(teacherId: Long): Flow<List<SalaryPayment>> = repo.observeTeacherSalaries(teacherId)
+    fun observeTeacherSalaries(teacherId: String): Flow<List<SalaryPayment>> = repo.observeTeacherSalaries(teacherId)
 
     fun saveTeacher(teacher: Teacher, onDone: () -> Unit = {}) {
         viewModelScope.launch {
@@ -268,9 +279,9 @@ class AcademicsViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun saveExamMarksForSubject(
-        examId: Long,
+        examId: String,
         subject: Subject,
-        marksByStudent: Map<Long, Double>,
+        marksByStudent: Map<String, Double>,
         onDone: () -> Unit
     ) {
         viewModelScope.launch {
@@ -284,4 +295,16 @@ class AcademicsViewModel(application: Application) : AndroidViewModel(applicatio
         classSubjects: List<Subject>,
         marks: List<ExamMark>
     ): List<StudentExamResult> = repo.computeExamResults(classStudents, classSubjects, marks)
+
+    fun buildLocalParentMessage(request: ParentMessageRequest): String =
+        aiCoordinator.buildLocalParentMessage(request)
+
+    suspend fun draftParentMessageWithAi(request: ParentMessageRequest): AiTextResult =
+        aiCoordinator.draftParentMessage(request, aiAssistantEnabled.value)
+
+    suspend fun summarizeStudent(request: StudentSummaryRequest, preferCloudAi: Boolean): AiTextResult =
+        aiCoordinator.summarizeStudent(request, aiAssistantEnabled.value, preferCloudAi)
+
+    suspend fun summarizeClass(request: ClassSummaryRequest, preferCloudAi: Boolean): AiTextResult =
+        aiCoordinator.summarizeClass(request, aiAssistantEnabled.value, preferCloudAi)
 }

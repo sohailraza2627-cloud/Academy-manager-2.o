@@ -1,267 +1,404 @@
 package com.example.data.local
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AcademyProfileDao {
-    @Query("SELECT * FROM academy_profile WHERE id = 1")
+    @Query("SELECT * FROM academy_profile WHERE id = 'academy_profile' AND deleted = 0 LIMIT 1")
     fun observeProfile(): Flow<AcademyProfile?>
 
-    @Query("SELECT * FROM academy_profile WHERE id = 1")
+    @Query("SELECT * FROM academy_profile WHERE id = 'academy_profile' LIMIT 1")
     suspend fun getProfileOnce(): AcademyProfile?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(profile: AcademyProfile)
+
+    @Query("SELECT * FROM academy_profile WHERE pendingSync = 1 LIMIT 1")
+    suspend fun getPendingSync(): AcademyProfile?
+
+    @Query("UPDATE academy_profile SET pendingSync = 0 WHERE id = 'academy_profile' AND updatedAt <= :syncedAt")
+    suspend fun markSynced(syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM academy_profile WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface AcademyClassDao {
-    @Query("SELECT * FROM classes ORDER BY name ASC")
+    @Query("SELECT * FROM classes WHERE deleted = 0 ORDER BY name ASC")
     fun observeAll(): Flow<List<AcademyClass>>
 
-    @Query("SELECT * FROM classes ORDER BY name ASC")
+    @Query("SELECT * FROM classes WHERE deleted = 0 ORDER BY name ASC")
     suspend fun getAllOnce(): List<AcademyClass>
 
-    @Query("SELECT * FROM classes WHERE id = :id")
-    suspend fun getById(id: Long): AcademyClass?
+    @Query("SELECT * FROM classes WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): AcademyClass?
 
-    @Insert
-    suspend fun insert(academyClass: AcademyClass): Long
+    @Query("SELECT * FROM classes WHERE id = :id AND deleted = 0 LIMIT 1")
+    suspend fun getById(id: String): AcademyClass?
 
-    @Update
-    suspend fun update(academyClass: AcademyClass)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(academyClass: AcademyClass)
 
-    @Delete
-    suspend fun delete(academyClass: AcademyClass)
+    @Query("SELECT * FROM classes WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<AcademyClass>
+
+    @Query("UPDATE classes SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM classes WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface SubjectDao {
-    @Query("SELECT * FROM subjects ORDER BY name ASC")
+    @Query("SELECT * FROM subjects WHERE deleted = 0 ORDER BY name ASC")
     fun observeAll(): Flow<List<Subject>>
 
-    @Query("SELECT * FROM subjects WHERE classId = :classId ORDER BY name ASC")
-    fun observeByClass(classId: Long): Flow<List<Subject>>
+    @Query("SELECT * FROM subjects WHERE classId = :classId AND deleted = 0 ORDER BY name ASC")
+    fun observeByClass(classId: String): Flow<List<Subject>>
 
-    @Query("SELECT * FROM subjects WHERE classId = :classId ORDER BY name ASC")
-    suspend fun getByClassOnce(classId: Long): List<Subject>
+    @Query("SELECT * FROM subjects WHERE classId = :classId AND deleted = 0 ORDER BY name ASC")
+    suspend fun getByClassOnce(classId: String): List<Subject>
 
-    @Insert
-    suspend fun insert(subject: Subject): Long
+    @Query("SELECT * FROM subjects WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): Subject?
 
-    @Update
-    suspend fun update(subject: Subject)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(subject: Subject)
 
-    @Delete
-    suspend fun delete(subject: Subject)
+    @Query("UPDATE subjects SET deleted = 1, updatedAt = :now, pendingSync = 1 WHERE classId = :classId AND deleted = 0")
+    suspend fun softDeleteByClass(classId: String, now: Long)
+
+    @Query("SELECT * FROM subjects WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<Subject>
+
+    @Query("UPDATE subjects SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM subjects WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface TimetableDao {
-    @Query("SELECT * FROM timetable_entries WHERE classId = :classId ORDER BY dayOfWeek ASC, startTime ASC")
-    fun observeByClass(classId: Long): Flow<List<TimetableEntry>>
+    @Query("SELECT * FROM timetable_entries WHERE classId = :classId AND deleted = 0 ORDER BY dayOfWeek ASC, startTime ASC")
+    fun observeByClass(classId: String): Flow<List<TimetableEntry>>
 
-    @Insert
-    suspend fun insert(entry: TimetableEntry): Long
+    @Query("SELECT * FROM timetable_entries WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): TimetableEntry?
 
-    @Update
-    suspend fun update(entry: TimetableEntry)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: TimetableEntry)
 
-    @Delete
-    suspend fun delete(entry: TimetableEntry)
+    @Query("UPDATE timetable_entries SET deleted = 1, updatedAt = :now, pendingSync = 1 WHERE classId = :classId AND deleted = 0")
+    suspend fun softDeleteByClass(classId: String, now: Long)
+
+    @Query("SELECT * FROM timetable_entries WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<TimetableEntry>
+
+    @Query("UPDATE timetable_entries SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM timetable_entries WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface StudentDao {
-    @Query("SELECT * FROM students ORDER BY name ASC")
+    @Query("SELECT * FROM students WHERE deleted = 0 ORDER BY name ASC")
     fun observeAll(): Flow<List<Student>>
 
-    @Query("SELECT * FROM students WHERE id = :id")
-    fun observeById(id: Long): Flow<Student?>
+    @Query("SELECT * FROM students WHERE id = :id AND deleted = 0 LIMIT 1")
+    fun observeById(id: String): Flow<Student?>
 
-    @Query("SELECT * FROM students WHERE id = :id")
-    suspend fun getById(id: Long): Student?
+    @Query("SELECT * FROM students WHERE id = :id AND deleted = 0 LIMIT 1")
+    suspend fun getById(id: String): Student?
 
-    @Query("SELECT * FROM students WHERE classId = :classId AND status = 'ACTIVE' ORDER BY rollNo ASC, name ASC")
-    suspend fun getActiveByClass(classId: Long): List<Student>
+    @Query("SELECT * FROM students WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): Student?
 
-    @Query("SELECT * FROM students WHERE status = 'ACTIVE' ORDER BY name ASC")
+    @Query("SELECT * FROM students WHERE classId = :classId AND status = 'ACTIVE' AND deleted = 0 ORDER BY rollNo ASC, name ASC")
+    suspend fun getActiveByClass(classId: String): List<Student>
+
+    @Query("SELECT * FROM students WHERE status = 'ACTIVE' AND deleted = 0 ORDER BY name ASC")
     suspend fun getAllActive(): List<Student>
 
-    @Query("SELECT COUNT(*) FROM students WHERE classId = :classId")
-    suspend fun countByClass(classId: Long): Int
+    @Query("SELECT COUNT(*) FROM students WHERE classId = :classId AND deleted = 0")
+    suspend fun countByClass(classId: String): Int
 
-    @Insert
-    suspend fun insert(student: Student): Long
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(student: Student)
 
-    @Update
-    suspend fun update(student: Student)
+    @Query("SELECT * FROM students WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<Student>
 
-    @Delete
-    suspend fun delete(student: Student)
+    @Query("UPDATE students SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM students WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface TeacherDao {
-    @Query("SELECT * FROM teachers ORDER BY name ASC")
+    @Query("SELECT * FROM teachers WHERE deleted = 0 ORDER BY name ASC")
     fun observeAll(): Flow<List<Teacher>>
 
-    @Insert
-    suspend fun insert(teacher: Teacher): Long
+    @Query("SELECT * FROM teachers WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): Teacher?
 
-    @Update
-    suspend fun update(teacher: Teacher)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(teacher: Teacher)
 
-    @Delete
-    suspend fun delete(teacher: Teacher)
+    @Query("SELECT * FROM teachers WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<Teacher>
+
+    @Query("UPDATE teachers SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM teachers WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface SalaryPaymentDao {
-    @Query("SELECT * FROM salary_payments ORDER BY paidDate DESC")
+    @Query("SELECT * FROM salary_payments WHERE deleted = 0 ORDER BY paidDate DESC")
     fun observeAll(): Flow<List<SalaryPayment>>
 
-    @Query("SELECT * FROM salary_payments WHERE teacherId = :teacherId ORDER BY paidDate DESC")
-    fun observeByTeacher(teacherId: Long): Flow<List<SalaryPayment>>
+    @Query("SELECT * FROM salary_payments WHERE teacherId = :teacherId AND deleted = 0 ORDER BY paidDate DESC")
+    fun observeByTeacher(teacherId: String): Flow<List<SalaryPayment>>
 
-    @Insert
-    suspend fun insert(payment: SalaryPayment): Long
+    @Query("SELECT * FROM salary_payments WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): SalaryPayment?
 
-    @Delete
-    suspend fun delete(payment: SalaryPayment)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(payment: SalaryPayment)
+
+    @Query("UPDATE salary_payments SET deleted = 1, updatedAt = :now, pendingSync = 1 WHERE teacherId = :teacherId AND deleted = 0")
+    suspend fun softDeleteByTeacher(teacherId: String, now: Long)
+
+    @Query("SELECT * FROM salary_payments WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<SalaryPayment>
+
+    @Query("UPDATE salary_payments SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM salary_payments WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface AttendanceDao {
-    @Query("SELECT * FROM attendance_records ORDER BY dateKey DESC")
+    @Query("SELECT * FROM attendance_records WHERE deleted = 0 ORDER BY dateKey DESC")
     fun observeAll(): Flow<List<AttendanceRecord>>
 
-    @Query("SELECT * FROM attendance_records WHERE dateKey = :dateKey")
-    fun observeByDate(dateKey: String): Flow<List<AttendanceRecord>>
+    @Query("SELECT * FROM attendance_records WHERE classId = :classId AND dateKey = :dateKey AND deleted = 0")
+    suspend fun getByClassAndDate(classId: String, dateKey: String): List<AttendanceRecord>
 
-    @Query("SELECT * FROM attendance_records WHERE classId = :classId AND dateKey = :dateKey")
-    suspend fun getByClassAndDate(classId: Long, dateKey: String): List<AttendanceRecord>
+    @Query("SELECT * FROM attendance_records WHERE studentId = :studentId AND dateKey = :dateKey LIMIT 1")
+    suspend fun getByStudentAndDate(studentId: String, dateKey: String): AttendanceRecord?
 
-    @Query("SELECT * FROM attendance_records WHERE studentId = :studentId ORDER BY dateKey DESC")
-    fun observeByStudent(studentId: Long): Flow<List<AttendanceRecord>>
+    @Query("SELECT * FROM attendance_records WHERE studentId = :studentId AND deleted = 0 ORDER BY dateKey DESC")
+    fun observeByStudent(studentId: String): Flow<List<AttendanceRecord>>
 
-    @Query("SELECT * FROM attendance_records WHERE classId = :classId AND monthKey = :monthKey")
-    fun observeByClassAndMonth(classId: Long, monthKey: String): Flow<List<AttendanceRecord>>
+    @Query("SELECT * FROM attendance_records WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): AttendanceRecord?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(records: List<AttendanceRecord>)
 
-    @Query("DELETE FROM attendance_records WHERE classId = :classId AND dateKey = :dateKey")
-    suspend fun deleteByClassAndDate(classId: Long, dateKey: String)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(record: AttendanceRecord)
+
+    @Query("UPDATE attendance_records SET deleted = 1, updatedAt = :now, pendingSync = 1 WHERE studentId = :studentId AND deleted = 0")
+    suspend fun softDeleteByStudent(studentId: String, now: Long)
+
+    @Query("SELECT * FROM attendance_records WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<AttendanceRecord>
+
+    @Query("UPDATE attendance_records SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM attendance_records WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface FeeChargeDao {
-    @Query("SELECT * FROM fee_charges ORDER BY createdAt DESC, id DESC")
+    @Query("SELECT * FROM fee_charges WHERE deleted = 0 ORDER BY createdAt DESC, id DESC")
     fun observeAll(): Flow<List<FeeCharge>>
 
-    @Query("SELECT * FROM fee_charges WHERE studentId = :studentId ORDER BY createdAt DESC, id DESC")
-    fun observeByStudent(studentId: Long): Flow<List<FeeCharge>>
+    @Query("SELECT * FROM fee_charges WHERE studentId = :studentId AND deleted = 0 ORDER BY createdAt DESC, id DESC")
+    fun observeByStudent(studentId: String): Flow<List<FeeCharge>>
 
-    @Query("SELECT * FROM fee_charges WHERE id = :id")
-    suspend fun getById(id: Long): FeeCharge?
+    @Query("SELECT * FROM fee_charges WHERE id = :id AND deleted = 0 LIMIT 1")
+    suspend fun getById(id: String): FeeCharge?
 
-    @Query("SELECT * FROM fee_charges WHERE studentId = :studentId AND ledgerType = :ledgerType AND monthKey = :monthKey LIMIT 1")
-    suspend fun findTuitionCharge(studentId: Long, ledgerType: String, monthKey: String): FeeCharge?
+    @Query("SELECT * FROM fee_charges WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): FeeCharge?
 
-    @Query("SELECT * FROM fee_charges WHERE studentId = :studentId AND ledgerType = 'PAPER_FEE' AND batchKey = :batchKey LIMIT 1")
-    suspend fun findPaperFeeCharge(studentId: Long, batchKey: String): FeeCharge?
+    @Query("SELECT * FROM fee_charges WHERE studentId = :studentId AND ledgerType = :ledgerType AND monthKey = :monthKey AND deleted = 0 LIMIT 1")
+    suspend fun findTuitionCharge(studentId: String, ledgerType: String, monthKey: String): FeeCharge?
 
-    @Query("SELECT * FROM fee_charges WHERE studentId = :studentId AND ledgerType = 'TUITION' AND status != 'PAID' ORDER BY monthKey ASC, id ASC")
-    suspend fun getUnpaidTuitionCharges(studentId: Long): List<FeeCharge>
+    @Query("SELECT * FROM fee_charges WHERE studentId = :studentId AND ledgerType = 'PAPER_FEE' AND batchKey = :batchKey AND deleted = 0 LIMIT 1")
+    suspend fun findPaperFeeCharge(studentId: String, batchKey: String): FeeCharge?
 
-    @Insert
-    suspend fun insert(charge: FeeCharge): Long
+    @Query("SELECT * FROM fee_charges WHERE studentId = :studentId AND ledgerType = 'TUITION' AND status != 'PAID' AND deleted = 0 ORDER BY monthKey ASC, createdAt ASC")
+    suspend fun getUnpaidTuitionCharges(studentId: String): List<FeeCharge>
 
-    @Insert
-    suspend fun insertAll(charges: List<FeeCharge>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(charge: FeeCharge)
 
-    @Update
-    suspend fun update(charge: FeeCharge)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(charges: List<FeeCharge>)
 
-    @Delete
-    suspend fun delete(charge: FeeCharge)
+    @Query("UPDATE fee_charges SET deleted = 1, updatedAt = :now, pendingSync = 1 WHERE studentId = :studentId AND deleted = 0")
+    suspend fun softDeleteByStudent(studentId: String, now: Long)
+
+    @Query("SELECT * FROM fee_charges WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<FeeCharge>
+
+    @Query("UPDATE fee_charges SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM fee_charges WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface FeePaymentDao {
-    @Query("SELECT * FROM fee_payments ORDER BY paidDate DESC, id DESC")
+    @Query("SELECT * FROM fee_payments WHERE deleted = 0 ORDER BY paidDate DESC, id DESC")
     fun observeAll(): Flow<List<FeePayment>>
 
-    @Query("SELECT * FROM fee_payments WHERE studentId = :studentId ORDER BY paidDate DESC, id DESC")
-    fun observeByStudent(studentId: Long): Flow<List<FeePayment>>
+    @Query("SELECT * FROM fee_payments WHERE studentId = :studentId AND deleted = 0 ORDER BY paidDate DESC, id DESC")
+    fun observeByStudent(studentId: String): Flow<List<FeePayment>>
 
-    @Query("SELECT * FROM fee_payments WHERE receiptNumber = :receiptNumber ORDER BY id ASC")
-    suspend fun getByReceiptNumber(receiptNumber: String): List<FeePayment>
+    @Query("SELECT * FROM fee_payments WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): FeePayment?
 
-    @Insert
-    suspend fun insert(payment: FeePayment): Long
+    // Append-only: ignore conflicts if the payment id already exists!
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAppendOnly(payment: FeePayment)
 
-    @Insert
-    suspend fun insertAll(payments: List<FeePayment>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllAppendOnly(payments: List<FeePayment>)
+
+    @Query("SELECT * FROM fee_payments WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<FeePayment>
+
+    @Query("UPDATE fee_payments SET pendingSync = 0 WHERE id = :id")
+    suspend fun markSynced(id: String)
+
+    @Query("SELECT COUNT(*) FROM fee_payments WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface LedgerEntryDao {
-    @Query("SELECT * FROM ledger_entries ORDER BY date DESC, id DESC")
+    @Query("SELECT * FROM ledger_entries WHERE deleted = 0 ORDER BY date DESC, id DESC")
     fun observeAll(): Flow<List<LedgerEntry>>
 
-    @Insert
-    suspend fun insert(entry: LedgerEntry): Long
+    @Query("SELECT * FROM ledger_entries WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): LedgerEntry?
 
-    @Update
-    suspend fun update(entry: LedgerEntry)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: LedgerEntry)
 
-    @Delete
-    suspend fun delete(entry: LedgerEntry)
+    @Query("UPDATE ledger_entries SET deleted = 1, updatedAt = :now, pendingSync = 1 WHERE linkedSalaryPaymentId = :salaryPaymentId AND deleted = 0")
+    suspend fun softDeleteBySalaryPaymentId(salaryPaymentId: String, now: Long)
 
-    @Query("DELETE FROM ledger_entries WHERE linkedSalaryPaymentId = :salaryPaymentId")
-    suspend fun deleteBySalaryPaymentId(salaryPaymentId: Long)
+    @Query("SELECT * FROM ledger_entries WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<LedgerEntry>
+
+    @Query("UPDATE ledger_entries SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM ledger_entries WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface ExamDao {
-    @Query("SELECT * FROM exams ORDER BY examDate DESC, id DESC")
+    @Query("SELECT * FROM exams WHERE deleted = 0 ORDER BY examDate DESC, id DESC")
     fun observeAll(): Flow<List<Exam>>
 
-    @Query("SELECT * FROM exams WHERE id = :id")
-    suspend fun getById(id: Long): Exam?
+    @Query("SELECT * FROM exams WHERE id = :id AND deleted = 0 LIMIT 1")
+    suspend fun getById(id: String): Exam?
 
-    @Insert
-    suspend fun insert(exam: Exam): Long
+    @Query("SELECT * FROM exams WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): Exam?
 
-    @Update
-    suspend fun update(exam: Exam)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(exam: Exam)
 
-    @Delete
-    suspend fun delete(exam: Exam)
+    @Query("SELECT * FROM exams WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<Exam>
+
+    @Query("UPDATE exams SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM exams WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
 }
 
 @Dao
 interface ExamMarkDao {
-    @Query("SELECT * FROM exam_marks")
+    @Query("SELECT * FROM exam_marks WHERE deleted = 0")
     fun observeAll(): Flow<List<ExamMark>>
 
-    @Query("SELECT * FROM exam_marks WHERE examId = :examId")
-    fun observeByExam(examId: Long): Flow<List<ExamMark>>
+    @Query("SELECT * FROM exam_marks WHERE examId = :examId AND deleted = 0")
+    fun observeByExam(examId: String): Flow<List<ExamMark>>
 
-    @Query("SELECT * FROM exam_marks WHERE studentId = :studentId")
-    fun observeByStudent(studentId: Long): Flow<List<ExamMark>>
+    @Query("SELECT * FROM exam_marks WHERE studentId = :studentId AND deleted = 0")
+    fun observeByStudent(studentId: String): Flow<List<ExamMark>>
 
-    @Query("SELECT * FROM exam_marks WHERE examId = :examId AND subjectId = :subjectId")
-    suspend fun getByExamAndSubject(examId: Long, subjectId: Long): List<ExamMark>
+    @Query("SELECT * FROM exam_marks WHERE examId = :examId AND studentId = :studentId AND subjectId = :subjectId LIMIT 1")
+    suspend fun findByKey(examId: String, studentId: String, subjectId: String): ExamMark?
+
+    @Query("SELECT * FROM exam_marks WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): ExamMark?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(mark: ExamMark)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(marks: List<ExamMark>)
+
+    @Query("UPDATE exam_marks SET deleted = 1, updatedAt = :now, pendingSync = 1 WHERE examId = :examId AND deleted = 0")
+    suspend fun softDeleteByExam(examId: String, now: Long)
+
+    @Query("UPDATE exam_marks SET deleted = 1, updatedAt = :now, pendingSync = 1 WHERE studentId = :studentId AND deleted = 0")
+    suspend fun softDeleteByStudent(studentId: String, now: Long)
+
+    @Query("SELECT * FROM exam_marks WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<ExamMark>
+
+    @Query("UPDATE exam_marks SET pendingSync = 0 WHERE id = :id AND updatedAt <= :syncedAt")
+    suspend fun markSynced(id: String, syncedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM exam_marks WHERE pendingSync = 1")
+    fun observePendingCount(): Flow<Int>
+}
+
+@Dao
+interface AcademyMemberDao {
+    @Query("SELECT * FROM academy_members ORDER BY role ASC, name ASC")
+    fun observeAll(): Flow<List<AcademyMember>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(members: List<AcademyMember>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(member: AcademyMember)
+
+    @Query("DELETE FROM academy_members WHERE uid = :uid")
+    suspend fun deleteByUid(uid: String)
+
+    @Query("DELETE FROM academy_members")
+    suspend fun clearAll()
 }

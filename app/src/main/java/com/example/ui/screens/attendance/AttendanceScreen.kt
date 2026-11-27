@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.EventAvailable
@@ -32,16 +33,17 @@ fun AttendanceScreen(
     classes: List<AcademyClass>,
     students: List<Student>,
     allAttendanceRecords: List<AttendanceRecord>,
-    selectedClassId: Long?,
+    selectedClassId: String?,
     selectedDateKey: String,
     draftList: List<Pair<Student, String>>,
     isLoading: Boolean,
-    onSelectClass: (Long) -> Unit,
+    onSelectClass: (String) -> Unit,
     onSelectDate: (String) -> Unit,
-    onSetStatus: (Long, String) -> Unit,
-    onToggleStatus: (Long) -> Unit,
+    onSetStatus: (String, String) -> Unit,
+    onToggleStatus: (String) -> Unit,
     onMarkAllPresent: () -> Unit,
-    onSaveAttendance: () -> Unit
+    onSaveAttendance: () -> Unit,
+    onSendAttendanceWhatsApp: (Student, String, String, String) -> Unit = { _, _, _, _ -> }
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var reportMonthKey by rememberSaveable { mutableStateOf(FormatUtils.currentMonthKey()) }
@@ -176,7 +178,15 @@ fun AttendanceScreen(
                                 student = student,
                                 status = status,
                                 onToggle = { onToggleStatus(student.id) },
-                                onSelectStatus = { onSetStatus(student.id, it) }
+                                onSelectStatus = { onSetStatus(student.id, it) },
+                                onWhatsAppClick = {
+                                    onSendAttendanceWhatsApp(
+                                        student,
+                                        selectedClass?.name ?: "",
+                                        FormatUtils.formatDateKey(selectedDateKey),
+                                        status
+                                    )
+                                }
                             )
                         }
                     }
@@ -284,7 +294,8 @@ private fun AttendanceStudentRow(
     student: Student,
     status: String,
     onToggle: () -> Unit,
-    onSelectStatus: (String) -> Unit
+    onSelectStatus: (String) -> Unit,
+    onWhatsAppClick: () -> Unit
 ) {
     GoogleCard(
         onClick = onToggle,
@@ -337,6 +348,20 @@ private fun AttendanceStudentRow(
                     onClick = { onSelectStatus(AttendanceStatus.LEAVE) },
                     testTag = "att_l_${student.id}"
                 )
+                IconButton(
+                    onClick = onWhatsAppClick,
+                    modifier = Modifier.testTag("att_wa_${student.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Chat,
+                        contentDescription = stringResource(R.string.wa_send_attendance_alert),
+                        tint = when (status) {
+                            AttendanceStatus.ABSENT -> MaterialTheme.colorScheme.error
+                            AttendanceStatus.LEAVE -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             }
         }
     }

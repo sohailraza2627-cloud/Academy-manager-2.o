@@ -21,12 +21,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.R
-import com.example.data.local.AcademyClass
-import com.example.data.local.Subject
-import com.example.data.local.TimetableEntry
+import com.example.data.ai.AiTextResult
+import com.example.data.ai.ClassSummaryRequest
+import com.example.data.ai.LocalTemplateAiEngine
+import com.example.data.local.*
+import com.example.data.repository.StudentExamResult
+import com.example.ui.components.AcademySummaryCard
 import com.example.ui.components.EmptyStateView
 import com.example.ui.components.GoogleCard
 import com.example.util.FormatUtils
+import kotlinx.coroutines.runBlocking
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +38,18 @@ fun ClassDetailScreen(
     academyClass: AcademyClass?,
     subjects: List<Subject>,
     timetable: List<TimetableEntry>,
+    classStudents: List<Student> = emptyList(),
+    attendanceRecords: List<AttendanceRecord> = emptyList(),
+    feeCharges: List<FeeCharge> = emptyList(),
+    exams: List<Exam> = emptyList(),
+    examMarks: List<ExamMark> = emptyList(),
+    profile: AcademyProfile = AcademyProfile(),
+    aiEnabled: Boolean = false,
+    computeExamResults: (List<Student>, List<Subject>, List<ExamMark>) -> List<StudentExamResult> = { _, _, _ -> emptyList() },
+    onSummarizeClass: suspend (ClassSummaryRequest, Boolean) -> AiTextResult = { req, _ ->
+        LocalTemplateAiEngine().summarizeClass(req)
+    },
+    isAdmin: Boolean = true,
     onBack: () -> Unit,
     onSaveSubject: (Subject) -> Unit,
     onDeleteSubject: (Subject) -> Unit,
@@ -78,7 +94,7 @@ fun ClassDetailScreen(
             )
         },
         floatingActionButton = {
-            if (academyClass != null) {
+            if (isAdmin && academyClass != null) {
                 FloatingActionButton(
                     onClick = {
                         if (selectedTab == 0) showAddSubject = true else showAddTimetable = true
@@ -110,16 +126,63 @@ fun ClassDetailScreen(
             }
 
             if (selectedTab == 0) {
-                if (subjects.isEmpty()) {
-                    EmptyStateView(
-                        title = stringResource(R.string.subjects_empty),
-                        icon = Icons.Default.Book
+                val activeCount = remember(classStudents) { classStudents.count { it.status == StudentStatus.ACTIVE } }
+                val leftCount = remember(classStudents) { classStudents.count { it.status == StudentStatus.LEFT } }
+                val thirtyDaysAgo = remember { System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L }
+                val cutoffKey = remember(thirtyDaysAgo) { FormatUtils.toDateKey(thirtyDaysAgo) }
+                val recentAtt = remember(attendanceRecords, cutoffKey) {
+                    attendanceRecords.filter { it.dateKey >= cutoffKey }
+                }
+                val latestExam = remember(exams) { exams.maxByOrNull { it.examDate } }
+                val latestAvg = remember(latestExam, classStudents, subjects, examMarks) {
+                    if (latestExam == null) null
+                    else {
+                        val marks = examMarks.filter { it.examId == latestExam.id }
+                        val ranked = computeExamResults(classStudents, subjects, marks)
+                        if (ranked.isEmpty()) null else ranked.map { it.percentage }.average()
+                    }
+                }
+                val summaryRequest = remember(academyClass, activeCount, leftCount, recentAtt, feeCharges, latestExam, latestAvg, profile.academyName) {
+                    ClassSummaryRequest(
+                        academyName = profile.academyName,
+                        className = academyClass?.name ?: "",
+                        activeStudentsCount = activeCount,
+                        leftStudentsCount = leftCount,
+                        presentCountLast30Days = recentAtt.count { it.status == AttendanceStatus.PRESENT },
+                        absentCountLast30Days = recentAtt.count { it.status == AttendanceStatus.ABSENT },
+                        leaveCountLast30Days = recentAtt.count { it.status == AttendanceStatus.LEAVE },
+                        tuitionPendingTotal = feeCharges.filter { it.ledgerType == FeeLedgerType.TUITION }.sumOf { it.remainingAmount },
+                        paperFeePendingTotal = feeCharges.filter { it.ledgerType == FeeLedgerType.PAPER_FEE }.sumOf { it.remainingAmount },
+                        latestExamTitle = latestExam?.name,
+                        latestExamAvgPercent = latestAvg
                     )
-                } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 88.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                }
+                val localSummary = remember(summaryRequest) {
+                    (runBlocking { LocalTemplateAiEngine().summarizeClass(summaryRequest) } as AiTextResult.Success).text
+                }
+
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 88.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (academyClass != null && classStudents.isNotEmpty()) {
+                        item {
+                            AcademySummaryCard(
+                                title = stringResource(R.string.class_overview_title),
+                                localSummaryText = localSummary,
+                                aiEnabled = aiEnabled,
+                                onGenerateAiSummary = { onSummarizeClass(summaryRequest, true) }
+                            )
+                        }
+                    }
+                    if (subjects.isEmpty()) {
+                        item {
+                            EmptyStateView(
+                                title = stringResource(R.string.subjects_empty),
+                                icon = Icons.Default.Book
+                            )
+                        }
+                    } else {
                         items(subjects, key = { it.id }) { subject ->
                             GoogleCard(contentPadding = PaddingValues(14.dp)) {
                                 Row(
@@ -135,8 +198,10 @@ fun ClassDetailScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    IconButton(onClick = { onDeleteSubject(subject) }) {
-                                        Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                                    if (isAdmin) {
+                                        IconButton(onClick = { onDeleteSubject(subject) }) {
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                                        }
                                     }
                                 }
                             }
@@ -192,8 +257,10 @@ fun ClassDetailScreen(
                                             )
                                         }
                                     }
-                                    IconButton(onClick = { onDeleteTimetable(entry) }) {
-                                        Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                                    if (isAdmin) {
+                                        IconButton(onClick = { onDeleteTimetable(entry) }) {
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                                        }
                                     }
                                 }
                             }
@@ -231,7 +298,7 @@ fun ClassDetailScreen(
 
 @Composable
 private fun AddSubjectDialog(
-    classId: Long,
+    classId: String,
     onDismiss: () -> Unit,
     onSave: (Subject) -> Unit
 ) {
@@ -292,7 +359,7 @@ private fun AddSubjectDialog(
 
 @Composable
 private fun AddTimetableDialog(
-    classId: Long,
+    classId: String,
     dayOfWeek: Int,
     subjects: List<Subject>,
     onDismiss: () -> Unit,

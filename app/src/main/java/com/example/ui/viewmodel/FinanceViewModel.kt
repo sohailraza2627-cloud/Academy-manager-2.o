@@ -35,15 +35,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
 
-    fun observeStudentFeeCharges(studentId: Long): Flow<List<FeeCharge>> =
+    fun observeStudentFeeCharges(studentId: String): Flow<List<FeeCharge>> =
         repo.observeStudentFeeCharges(studentId)
 
-    fun observeStudentFeePayments(studentId: Long): Flow<List<FeePayment>> =
+    fun observeStudentFeePayments(studentId: String): Flow<List<FeePayment>> =
         repo.observeStudentFeePayments(studentId)
 
     fun generateMonthlyTuitionFees(
         monthKey: String,
-        classIdFilter: Long? = null,
+        classIdFilter: String? = null,
         onResult: (Int, Int) -> Unit
     ) {
         viewModelScope.launch {
@@ -53,7 +53,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun createPaperFeeCharges(
-        classId: Long,
+        classId: String,
         paperTitle: String,
         amountPerStudent: Long,
         dueDate: Long,
@@ -66,7 +66,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun createOtherFeeCharge(
-        studentId: Long,
+        studentId: String,
         feeSubType: String,
         title: String,
         amount: Long,
@@ -81,7 +81,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun collectSingleChargePayment(
-        chargeId: Long,
+        chargeId: String,
         amountPaying: Long,
         discountAdded: Long,
         paidDate: Long,
@@ -106,8 +106,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun collectTuitionPaymentFifo(
-        studentId: Long,
-        targetChargeId: Long?,
+        studentId: String,
+        targetChargeId: String?,
         amountPaying: Long,
         discountOnTarget: Long,
         paidDate: Long,

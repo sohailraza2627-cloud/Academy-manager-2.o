@@ -29,13 +29,14 @@ import com.example.util.FormatUtils
 fun ExamsScreen(
     examsState: DataLoadState<List<Exam>>,
     classes: List<AcademyClass>,
+    isAdmin: Boolean = true,
     onBack: () -> Unit,
-    onExamClick: (Long) -> Unit,
+    onExamClick: (String) -> Unit,
     onSaveExam: (Exam) -> Unit,
     onDeleteExam: (Exam) -> Unit
 ) {
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
-    var deleteExamId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var deleteExamId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val classMap = remember(classes) { classes.associateBy { it.id } }
     val allExams = (examsState as? DataLoadState.Success)?.data ?: emptyList()
@@ -54,13 +55,15 @@ fun ExamsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("create_exam_fab")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.create_exam))
+            if (isAdmin) {
+                FloatingActionButton(
+                    onClick = { showCreateDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.testTag("create_exam_fab")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.create_exam))
+                }
             }
         }
     ) { innerPadding ->
@@ -102,12 +105,14 @@ fun ExamsScreen(
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
-                                        IconButton(onClick = { deleteExamId = exam.id }) {
-                                            Icon(
-                                                Icons.Default.DeleteOutline,
-                                                contentDescription = stringResource(R.string.delete),
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
+                                        if (isAdmin) {
+                                            IconButton(onClick = { deleteExamId = exam.id }) {
+                                                Icon(
+                                                    Icons.Default.DeleteOutline,
+                                                    contentDescription = stringResource(R.string.delete),
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -161,7 +166,7 @@ private fun CreateExamDialog(
     onSave: (Exam) -> Unit
 ) {
     var name by rememberSaveable { mutableStateOf("") }
-    var classId by rememberSaveable { mutableStateOf(classes.firstOrNull()?.id ?: 0L) }
+    var classId by rememberSaveable { mutableStateOf(classes.firstOrNull()?.id ?: "") }
     var examDate by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
     var classExpanded by remember { mutableStateOf(false) }
     var nameErr by rememberSaveable { mutableStateOf<String?>(null) }
@@ -231,7 +236,7 @@ private fun CreateExamDialog(
                     onClick = {
                         if (name.isBlank()) {
                             nameErr = requiredMsg
-                        } else if (classId != 0L) {
+                        } else if (classId.isNotBlank()) {
                             onSave(Exam(name = name.trim(), classId = classId, examDate = examDate))
                         }
                     }

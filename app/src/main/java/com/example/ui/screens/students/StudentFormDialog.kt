@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +28,8 @@ import com.example.data.local.StudentStatus
 import com.example.ui.components.ColoredInitialAvatar
 import com.example.ui.components.DatePickerField
 import com.example.util.ImageStorage
+import com.example.util.WhatsAppHelper
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,10 +45,13 @@ fun StudentFormDialog(
     var name by rememberSaveable(initialStudent?.id) { mutableStateOf(initialStudent?.name ?: "") }
     var fatherName by rememberSaveable(initialStudent?.id) { mutableStateOf(initialStudent?.fatherName ?: "") }
     var phone by rememberSaveable(initialStudent?.id) { mutableStateOf(initialStudent?.phone ?: "") }
+    var guardianWhatsapp by rememberSaveable(initialStudent?.id) {
+        mutableStateOf(initialStudent?.guardianWhatsapp ?: "")
+    }
     var address by rememberSaveable(initialStudent?.id) { mutableStateOf(initialStudent?.address ?: "") }
     var rollNo by rememberSaveable(initialStudent?.id) { mutableStateOf(initialStudent?.rollNo ?: "") }
     var selectedClassId by rememberSaveable(initialStudent?.id) {
-        mutableStateOf(initialStudent?.classId ?: classes.firstOrNull()?.id ?: 0L)
+        mutableStateOf(initialStudent?.classId ?: classes.firstOrNull()?.id ?: "")
     }
     var admissionDate by rememberSaveable(initialStudent?.id) {
         mutableStateOf(initialStudent?.admissionDate ?: System.currentTimeMillis())
@@ -61,14 +67,17 @@ fun StudentFormDialog(
     var nameError by rememberSaveable { mutableStateOf<String?>(null) }
     var fatherError by rememberSaveable { mutableStateOf<String?>(null) }
     var phoneError by rememberSaveable { mutableStateOf<String?>(null) }
+    var whatsappError by rememberSaveable { mutableStateOf<String?>(null) }
     var rollError by rememberSaveable { mutableStateOf<String?>(null) }
     var classError by rememberSaveable { mutableStateOf<String?>(null) }
     var discountError by rememberSaveable { mutableStateOf<String?>(null) }
 
+    var pendingStudentForConfirm by remember { mutableStateOf<Student?>(null) }
     var classMenuExpanded by remember { mutableStateOf(false) }
 
     val requiredMsg = stringResource(R.string.field_required)
     val invalidAmountMsg = stringResource(R.string.invalid_amount)
+    val invalidWhatsappMsg = stringResource(R.string.whatsapp_invalid_error)
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -186,6 +195,47 @@ fun StudentFormDialog(
                         )
                     }
 
+                    val normalizedPreview = remember(guardianWhatsapp) {
+                        WhatsAppHelper.normalizeWhatsAppNumber(guardianWhatsapp)
+                    }
+                    OutlinedTextField(
+                        value = guardianWhatsapp,
+                        onValueChange = { guardianWhatsapp = it; whatsappError = null },
+                        label = { Text(stringResource(R.string.guardian_whatsapp_label)) },
+                        placeholder = { Text(stringResource(R.string.guardian_whatsapp_placeholder)) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                        isError = whatsappError != null,
+                        supportingText = {
+                            when {
+                                whatsappError != null -> Text(whatsappError!!)
+                                guardianWhatsapp.isNotBlank() && normalizedPreview != null ->
+                                    Text(stringResource(R.string.whatsapp_formatted_preview, normalizedPreview))
+                                else -> Text(stringResource(R.string.guardian_whatsapp_hint))
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("student_whatsapp_input")
+                    )
+
+                    val previousEntries = remember(initialStudent?.whatsappHistory) {
+                        WhatsAppHelper.parseHistoryEntries(initialStudent?.whatsappHistory.orEmpty())
+                    }
+                    if (previousEntries.isNotEmpty()) {
+                        Text(
+                            text = stringResource(
+                                R.string.whatsapp_history_inline,
+                                previousEntries.joinToString(", ")
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     // Class Dropdown
                     val selectedClass = classes.find { it.id == selectedClassId }
                     ExposedDropdownMenuBox(
@@ -262,31 +312,57 @@ fun StudentFormDialog(
                         if (fatherName.isBlank()) { fatherError = requiredMsg; valid = false }
                         if (phone.isBlank()) { phoneError = requiredMsg; valid = false }
                         if (rollNo.isBlank()) { rollError = requiredMsg; valid = false }
-                        if (selectedClassId == 0L || classes.none { it.id == selectedClassId }) {
+                        if (selectedClassId.isBlank() || classes.none { it.id == selectedClassId }) {
                             classError = requiredMsg; valid = false
                         }
                         val discount = if (discountStr.isBlank()) 0L else discountStr.trim().toLongOrNull()
                         if (discount == null || discount < 0L) {
                             discountError = invalidAmountMsg; valid = false
                         }
-                        if (valid && discount != null) {
-                            onSave(
-                                Student(
-                                    id = initialStudent?.id ?: 0L,
-                                    name = name.trim(),
-                                    fatherName = fatherName.trim(),
-                                    phone = phone.trim(),
-                                    address = address.trim(),
-                                    classId = selectedClassId,
-                                    rollNo = rollNo.trim(),
-                                    admissionDate = admissionDate,
-                                    photoPath = photoPath,
-                                    monthlyDiscount = discount,
-                                    status = status,
-                                    leftDate = initialStudent?.leftDate,
-                                    createdAt = initialStudent?.createdAt ?: System.currentTimeMillis()
+                        val rawWa = guardianWhatsapp.trim()
+                        val normalizedWa = if (rawWa.isBlank()) "" else WhatsAppHelper.normalizeWhatsAppNumber(rawWa)
+                        if (rawWa.isNotBlank() && normalizedWa == null) {
+                            whatsappError = invalidWhatsappMsg
+                            valid = false
+                        }
+
+                        if (valid && discount != null && normalizedWa != null) {
+                            val oldRaw = initialStudent?.guardianWhatsapp?.trim().orEmpty()
+                            val oldNormalized = WhatsAppHelper.normalizeWhatsAppNumber(oldRaw) ?: oldRaw
+                            val whatsappChanged = isEdit && oldRaw.isNotBlank() && oldNormalized != normalizedWa
+
+                            val updatedHistory = if (whatsappChanged) {
+                                WhatsAppHelper.appendHistory(
+                                    existingHistory = initialStudent?.whatsappHistory.orEmpty(),
+                                    previousNumber = oldNormalized
                                 )
+                            } else {
+                                initialStudent?.whatsappHistory.orEmpty()
+                            }
+
+                            val candidate = Student(
+                                id = initialStudent?.id ?: UUID.randomUUID().toString(),
+                                name = name.trim(),
+                                fatherName = fatherName.trim(),
+                                phone = phone.trim(),
+                                address = address.trim(),
+                                classId = selectedClassId,
+                                rollNo = rollNo.trim(),
+                                admissionDate = admissionDate,
+                                photoPath = photoPath,
+                                guardianWhatsapp = normalizedWa,
+                                whatsappHistory = updatedHistory,
+                                monthlyDiscount = discount,
+                                status = status,
+                                leftDate = initialStudent?.leftDate,
+                                createdAt = initialStudent?.createdAt ?: System.currentTimeMillis()
                             )
+
+                            if (whatsappChanged) {
+                                pendingStudentForConfirm = candidate
+                            } else {
+                                onSave(candidate)
+                            }
                         }
                     },
                     modifier = Modifier.testTag("save_student_button")
@@ -301,4 +377,32 @@ fun StudentFormDialog(
             }
         }
     )
+
+    pendingStudentForConfirm?.let { candidate ->
+        val oldDisplay = initialStudent?.guardianWhatsapp.orEmpty()
+        val newDisplay = candidate.guardianWhatsapp.ifBlank { stringResource(R.string.wa_removed_label) }
+        AlertDialog(
+            onDismissRequest = { pendingStudentForConfirm = null },
+            title = { Text(stringResource(R.string.whatsapp_change_confirm_title)) },
+            text = {
+                Text(stringResource(R.string.whatsapp_change_confirm_msg, oldDisplay, newDisplay))
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingStudentForConfirm = null
+                        onSave(candidate)
+                    },
+                    modifier = Modifier.testTag("confirm_whatsapp_change_btn")
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingStudentForConfirm = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }

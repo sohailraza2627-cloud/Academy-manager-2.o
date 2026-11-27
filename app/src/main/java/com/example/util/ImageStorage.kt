@@ -4,13 +4,40 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Base64
 import android.util.LruCache
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
 object ImageStorage {
     private val memoryCache = object : LruCache<String, Bitmap>(32) {}
+
+    fun encodeUriToBase64Jpeg(
+        context: Context,
+        uri: Uri,
+        maxDim: Int = 1280
+    ): Pair<String, Bitmap>? {
+        return try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+            val sampleSize = calculateInSampleSize(options, maxDim, maxDim)
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, decodeOptions)
+            } ?: return null
+
+            val baos = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 82, baos)
+            val base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+            base64 to bitmap
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     fun copyUriToInternalStorage(context: Context, uri: Uri, folderName: String): String? {
         return try {

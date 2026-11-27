@@ -28,20 +28,21 @@ import com.example.ui.viewmodel.DataLoadState
 fun StudentsScreen(
     studentsState: DataLoadState<List<Student>>,
     classes: List<AcademyClass>,
-    onStudentClick: (Long) -> Unit,
+    isAdmin: Boolean = true,
+    onStudentClick: (String) -> Unit,
     onSaveStudent: (Student) -> Unit,
     onSetStudentStatus: (Student, String) -> Unit,
     onDeleteStudent: (Student) -> Unit,
     onNavigateToClasses: () -> Unit
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedClassId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedClassId by rememberSaveable { mutableStateOf<String?>(null) }
     var statusFilter by rememberSaveable { mutableStateOf("ALL") } // ALL, ACTIVE, LEFT
 
     var showAddEditDialog by rememberSaveable { mutableStateOf(false) }
-    var editingStudentId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var actionSheetStudentId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var deleteConfirmStudentId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingStudentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var actionSheetStudentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var deleteConfirmStudentId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val classMap = remember(classes) { classes.associateBy { it.id } }
 
@@ -59,16 +60,18 @@ fun StudentsScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingStudentId = null
-                    showAddEditDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("add_student_fab")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_student))
+            if (isAdmin) {
+                FloatingActionButton(
+                    onClick = {
+                        editingStudentId = null
+                        showAddEditDialog = true
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.testTag("add_student_fab")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_student))
+                }
             }
         }
     ) { innerPadding ->
@@ -186,6 +189,7 @@ fun StudentsScreen(
                                 StudentListCard(
                                     student = student,
                                     className = className,
+                                    showMoreAction = isAdmin,
                                     onClick = { onStudentClick(student.id) },
                                     onMoreClick = { actionSheetStudentId = student.id }
                                 )
@@ -317,6 +321,7 @@ fun StudentsScreen(
 private fun StudentListCard(
     student: Student,
     className: String,
+    showMoreAction: Boolean,
     onClick: () -> Unit,
     onMoreClick: () -> Unit
 ) {
@@ -367,17 +372,19 @@ private fun StudentListCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(
-                onClick = onMoreClick,
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .testTag("student_more_${student.id}")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.student_actions),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (showMoreAction) {
+                IconButton(
+                    onClick = onMoreClick,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("student_more_${student.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.student_actions),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

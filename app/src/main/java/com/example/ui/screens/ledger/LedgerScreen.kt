@@ -31,6 +31,7 @@ import com.example.util.FormatUtils
 fun LedgerScreen(
     ledgerState: DataLoadState<List<LedgerEntry>>,
     feePayments: List<FeePayment>,
+    isAdmin: Boolean = true,
     onBack: () -> Unit,
     onSaveEntry: (LedgerEntry) -> Unit,
     onDeleteEntry: (LedgerEntry) -> Unit
@@ -61,13 +62,15 @@ fun LedgerScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("add_ledger_fab")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_ledger_entry))
+            if (isAdmin) {
+                FloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.testTag("add_ledger_fab")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_ledger_entry))
+                }
             }
         }
     ) { innerPadding ->
@@ -202,8 +205,10 @@ fun LedgerScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = if (isIncome) StatusGreenText else StatusRedText
                                             )
-                                            IconButton(onClick = { onDeleteEntry(entry) }) {
-                                                Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete))
+                                            if (isAdmin) {
+                                                IconButton(onClick = { onDeleteEntry(entry) }) {
+                                                    Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete))
+                                                }
                                             }
                                         }
                                     }

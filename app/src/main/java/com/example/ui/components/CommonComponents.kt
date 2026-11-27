@@ -16,6 +16,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Search
@@ -43,6 +46,7 @@ import com.example.R
 import com.example.data.local.AcademyProfile
 import com.example.data.local.FeeLedgerType
 import com.example.data.repository.ReceiptResult
+import com.example.data.sync.SyncStatus
 import com.example.ui.theme.*
 import com.example.util.FormatUtils
 import com.example.util.ImageStorage
@@ -224,6 +228,71 @@ fun StatusBadge(
         )
     }
 }
+
+@Composable
+fun SyncStatusBadge(
+    status: SyncStatus,
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val (labelRes, icon, bg, fg) = when (status) {
+        SyncStatus.SYNCED -> Quad(
+            R.string.sync_synced,
+            Icons.Default.CloudDone,
+            if (isDark) StatusGreenDarkBg else StatusGreenBg,
+            if (isDark) StatusGreenDarkText else StatusGreenText
+        )
+        SyncStatus.SYNCING -> Quad(
+            R.string.sync_syncing,
+            Icons.Default.CloudSync,
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        SyncStatus.OFFLINE -> Quad(
+            R.string.sync_offline,
+            Icons.Default.CloudOff,
+            if (isDark) StatusAmberDarkBg else StatusAmberBg,
+            if (isDark) StatusAmberDarkText else StatusAmberText
+        )
+    }
+    Surface(
+        onClick = onClick,
+        modifier = modifier.testTag("sync_status_badge"),
+        shape = RoundedCornerShape(100.dp),
+        color = bg
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        ) {
+            if (status == SyncStatus.SYNCING) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 1.8.dp,
+                    color = fg
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = stringResource(labelRes),
+                    tint = fg,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            Text(
+                text = stringResource(labelRes),
+                color = fg,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @Composable
 fun MonthSwitcher(

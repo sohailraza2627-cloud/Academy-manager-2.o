@@ -23,8 +23,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.local.*
+import com.example.ui.components.BadgeTone
 import com.example.ui.components.GoogleCard
 import com.example.ui.components.SectionHeader
+import com.example.ui.components.StatusBadge
 import com.example.ui.theme.StatusGreenText
 import com.example.ui.theme.StatusRedText
 import com.example.util.FormatUtils
@@ -33,6 +35,7 @@ import com.example.util.ImageStorage
 @Composable
 fun DashboardScreen(
     profile: AcademyProfile,
+    isAdmin: Boolean = true,
     students: List<Student>,
     attendanceRecords: List<AttendanceRecord>,
     feeCharges: List<FeeCharge>,
@@ -43,7 +46,8 @@ fun DashboardScreen(
     onNavigateToFees: () -> Unit,
     onNavigateToPaperFee: () -> Unit,
     onNavigateToLedger: () -> Unit,
-    onNavigateToReports: () -> Unit
+    onNavigateToReports: () -> Unit,
+    onOpenAssistant: () -> Unit = {}
 ) {
     val todayKey = remember { FormatUtils.currentDateKey() }
     val currentMonthKey = remember { FormatUtils.currentMonthKey() }
@@ -148,6 +152,69 @@ fun DashboardScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    if (!isAdmin) {
+                        StatusBadge(
+                            text = stringResource(R.string.role_teacher),
+                            tone = BadgeTone.BLUE
+                        )
+                    }
+                }
+            }
+        }
+
+        // Gemini-style Academy Assistant Launcher Card
+        item {
+            Surface(
+                onClick = onOpenAssistant,
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                tonalElevation = 1.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 68.dp)
+                    .testTag("dashboard_assistant_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = stringResource(R.string.assistant_title),
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.assistant_card_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = stringResource(R.string.assistant_card_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ArrowOutward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 }
             }
         }
@@ -265,22 +332,24 @@ fun DashboardScreen(
                         .weight(1f)
                         .testTag("qa_mark_attendance")
                 )
-                QuickActionTile(
-                    label = stringResource(R.string.action_add_student),
-                    icon = Icons.Default.PersonAdd,
-                    onClick = onNavigateToStudents,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("qa_add_student")
-                )
-                QuickActionTile(
-                    label = stringResource(R.string.action_collect_fee),
-                    icon = Icons.Default.ReceiptLong,
-                    onClick = onNavigateToFees,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("qa_collect_fee")
-                )
+                if (isAdmin) {
+                    QuickActionTile(
+                        label = stringResource(R.string.action_add_student),
+                        icon = Icons.Default.PersonAdd,
+                        onClick = onNavigateToStudents,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("qa_add_student")
+                    )
+                    QuickActionTile(
+                        label = stringResource(R.string.action_collect_fee),
+                        icon = Icons.Default.ReceiptLong,
+                        onClick = onNavigateToFees,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("qa_collect_fee")
+                    )
+                }
                 QuickActionTile(
                     label = stringResource(R.string.action_reports),
                     icon = Icons.Default.Assessment,

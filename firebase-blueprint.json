@@ -1,0 +1,337 @@
+{
+  "entities": {
+    "UserLink": {
+      "title": "UserLink",
+      "description": "Maps an authenticated Google UID to their academy workspace and RBAC role.",
+      "type": "object",
+      "properties": {
+        "academyId": { "type": "string", "description": "UUID of the academy this user belongs to." },
+        "role": { "type": "string", "enum": ["ADMIN", "TEACHER"], "description": "RBAC role within the academy." },
+        "email": { "type": "string", "format": "email", "description": "Verified lowercase Google account email." },
+        "name": { "type": "string", "description": "Display name of the member." }
+      },
+      "required": ["academyId", "role", "email", "name"]
+    },
+    "TeacherInvite": {
+      "title": "TeacherInvite",
+      "description": "Pending teacher invitation keyed by lowercase Google email, claimed and deleted on first Google Sign-In.",
+      "type": "object",
+      "properties": {
+        "academyId": { "type": "string", "description": "UUID of the inviting academy." },
+        "academyName": { "type": "string", "description": "Display name of the inviting academy." },
+        "role": { "type": "string", "enum": ["TEACHER"], "description": "Assigned role when claimed." },
+        "teacherName": { "type": "string", "description": "Teacher display name entered by admin." },
+        "email": { "type": "string", "format": "email", "description": "Lowercase Google email matching document ID." },
+        "invitedByUid": { "type": "string", "description": "Admin UID who issued the invite." },
+        "createdAt": { "type": "integer", "description": "Epoch milliseconds when created." }
+      },
+      "required": ["academyId", "academyName", "role", "teacherName", "email", "invitedByUid", "createdAt"]
+    },
+    "Academy": {
+      "title": "Academy",
+      "description": "Root academy workspace document holding academy profile metadata.",
+      "type": "object",
+      "properties": {
+        "academyName": { "type": "string", "description": "Academy name (e.g. Alhamd Science Evening Academy)." },
+        "tagline": { "type": "string", "description": "Optional tagline or subtitle." },
+        "phone": { "type": "string", "description": "Academy contact phone number." },
+        "address": { "type": "string", "description": "Academy street address." },
+        "ownerUid": { "type": "string", "description": "Immutable Firebase UID of the founding admin." },
+        "createdAt": { "type": "integer", "description": "Immutable creation timestamp in epoch milliseconds." },
+        "updatedAt": { "type": "integer", "description": "Last update timestamp in epoch milliseconds for LWW sync." }
+      },
+      "required": ["academyName", "tagline", "phone", "address", "ownerUid", "createdAt", "updatedAt"]
+    },
+    "AcademyMember": {
+      "title": "AcademyMember",
+      "description": "Authorized member entry within an academy (Admin or Teacher).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID matching document ID." },
+        "email": { "type": "string", "format": "email", "description": "Lowercase Google account email." },
+        "name": { "type": "string", "description": "Member name." },
+        "role": { "type": "string", "enum": ["ADMIN", "TEACHER"], "description": "Member role." },
+        "createdAt": { "type": "integer", "description": "Creation epoch milliseconds." }
+      },
+      "required": ["uid", "email", "name", "role", "createdAt"]
+    },
+    "AcademyClass": {
+      "title": "AcademyClass",
+      "description": "Academy class/grade definition with monthly tuition fee.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Class UUID matching document ID." },
+        "name": { "type": "string", "description": "Class display name." },
+        "monthlyFee": { "type": "integer", "description": "Monthly tuition fee in Rs." },
+        "createdAt": { "type": "integer", "description": "Creation epoch milliseconds." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "name", "monthlyFee", "createdAt", "updatedAt", "deleted"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Academic subject attached to a class.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Subject UUID matching document ID." },
+        "classId": { "type": "string", "description": "Parent class UUID." },
+        "name": { "type": "string", "description": "Subject title." },
+        "totalMarks": { "type": "integer", "description": "Default total marks for tests." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "classId", "name", "totalMarks", "updatedAt", "deleted"]
+    },
+    "TimetableEntry": {
+      "title": "TimetableEntry",
+      "description": "Day-wise class timetable slot.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Entry UUID matching document ID." },
+        "classId": { "type": "string", "description": "Parent class UUID." },
+        "dayOfWeek": { "type": "integer", "description": "Day of week (1-7)." },
+        "subjectName": { "type": "string", "description": "Subject name." },
+        "teacherName": { "type": "string", "description": "Teacher name." },
+        "startTime": { "type": "string", "description": "Slot start time string." },
+        "endTime": { "type": "string", "description": "Slot end time string." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "classId", "dayOfWeek", "subjectName", "teacherName", "startTime", "endTime", "updatedAt", "deleted"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student record including guardian WhatsApp number and previous number history.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Student UUID matching document ID." },
+        "name": { "type": "string", "description": "Student full name." },
+        "fatherName": { "type": "string", "description": "Father / guardian name." },
+        "phone": { "type": "string", "description": "Contact phone number." },
+        "address": { "type": "string", "description": "Residential address." },
+        "classId": { "type": "string", "description": "Enrolled class UUID." },
+        "rollNo": { "type": "string", "description": "Roll number." },
+        "admissionDate": { "type": "integer", "description": "Admission epoch milliseconds." },
+        "guardianWhatsapp": { "type": "string", "description": "Normalized guardian WhatsApp number (+92...)." },
+        "whatsappHistory": { "type": "string", "description": "Newline-delimited history of previous guardian WhatsApp numbers." },
+        "monthlyDiscount": { "type": "integer", "description": "Monthly tuition fee discount in Rs." },
+        "status": { "type": "string", "enum": ["ACTIVE", "LEFT"], "description": "Enrollment status." },
+        "leftDate": { "type": "integer", "description": "Optional date student left in epoch milliseconds." },
+        "createdAt": { "type": "integer", "description": "Immutable creation timestamp in epoch milliseconds." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "name", "fatherName", "phone", "address", "classId", "rollNo", "admissionDate", "guardianWhatsapp", "whatsappHistory", "monthlyDiscount", "status", "createdAt", "updatedAt", "deleted"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher staff record and monthly salary rate.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Teacher UUID matching document ID." },
+        "name": { "type": "string", "description": "Teacher name." },
+        "subject": { "type": "string", "description": "Primary subject taught." },
+        "phone": { "type": "string", "description": "Contact phone." },
+        "salary": { "type": "integer", "description": "Monthly salary in Rs." },
+        "joiningDate": { "type": "integer", "description": "Joining date epoch milliseconds." },
+        "createdAt": { "type": "integer", "description": "Creation epoch milliseconds." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "name", "subject", "phone", "salary", "joiningDate", "createdAt", "updatedAt", "deleted"]
+    },
+    "SalaryPayment": {
+      "title": "SalaryPayment",
+      "description": "Teacher salary disbursement record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Payment UUID matching document ID." },
+        "teacherId": { "type": "string", "description": "Teacher UUID." },
+        "monthKey": { "type": "string", "description": "Month key (yyyy-MM)." },
+        "amount": { "type": "integer", "description": "Amount paid in Rs." },
+        "paidDate": { "type": "integer", "description": "Payment epoch milliseconds." },
+        "notes": { "type": "string", "description": "Optional notes." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "teacherId", "monthKey", "amount", "paidDate", "notes", "updatedAt", "deleted"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily student attendance status writable by both Admin and Teachers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Attendance record UUID matching document ID." },
+        "studentId": { "type": "string", "description": "Student UUID." },
+        "classId": { "type": "string", "description": "Class UUID." },
+        "dateKey": { "type": "string", "description": "Date key (yyyy-MM-dd)." },
+        "monthKey": { "type": "string", "description": "Month key (yyyy-MM)." },
+        "status": { "type": "string", "enum": ["PRESENT", "ABSENT", "LEAVE"], "description": "Attendance status." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "studentId", "classId", "dateKey", "monthKey", "status", "updatedAt", "deleted"]
+    },
+    "FeeCharge": {
+      "title": "FeeCharge",
+      "description": "Student fee charge across separate TUITION, PAPER_FEE, and OTHER ledgers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Charge UUID matching document ID." },
+        "studentId": { "type": "string", "description": "Student UUID." },
+        "classId": { "type": "string", "description": "Class UUID." },
+        "ledgerType": { "type": "string", "enum": ["TUITION", "PAPER_FEE", "OTHER"], "description": "Separate ledger classification." },
+        "feeSubType": { "type": "string", "description": "Subtype label." },
+        "title": { "type": "string", "description": "Charge description." },
+        "monthKey": { "type": "string", "description": "Optional month key (yyyy-MM)." },
+        "batchKey": { "type": "string", "description": "Optional batch deduplication key." },
+        "baseAmount": { "type": "integer", "description": "Base amount before discount." },
+        "discountAmount": { "type": "integer", "description": "Discount applied to charge." },
+        "netAmount": { "type": "integer", "description": "Net payable amount." },
+        "paidAmount": { "type": "integer", "description": "Cumulative paid amount." },
+        "status": { "type": "string", "enum": ["UNPAID", "PARTIAL", "PAID"], "description": "Payment status." },
+        "dueDate": { "type": "integer", "description": "Due date epoch milliseconds." },
+        "createdAt": { "type": "integer", "description": "Creation epoch milliseconds." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "studentId", "classId", "ledgerType", "feeSubType", "title", "baseAmount", "discountAmount", "netAmount", "paidAmount", "status", "dueDate", "createdAt", "updatedAt", "deleted"]
+    },
+    "FeePayment": {
+      "title": "FeePayment",
+      "description": "Append-only payment/receipt record with device-prefixed receipt number; immutable once created.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Payment UUID matching document ID." },
+        "chargeId": { "type": "string", "description": "Referenced fee charge UUID." },
+        "studentId": { "type": "string", "description": "Student UUID." },
+        "ledgerType": { "type": "string", "enum": ["TUITION", "PAPER_FEE", "OTHER"], "description": "Fee ledger type." },
+        "receiptNumber": { "type": "string", "description": "Device-prefixed receipt number (e.g. R-A-0001)." },
+        "amountPaid": { "type": "integer", "description": "Cash collected in Rs." },
+        "discountApplied": { "type": "integer", "description": "Discount granted at payment time." },
+        "paidDate": { "type": "integer", "description": "Payment timestamp in epoch milliseconds." },
+        "monthKey": { "type": "string", "description": "Payment month key (yyyy-MM)." },
+        "notes": { "type": "string", "description": "Receipt notes." },
+        "updatedAt": { "type": "integer", "description": "Record timestamp in epoch milliseconds." }
+      },
+      "required": ["id", "chargeId", "studentId", "ledgerType", "receiptNumber", "amountPaid", "discountApplied", "paidDate", "monthKey", "notes", "updatedAt"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Class exam or weekly test event.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Exam UUID matching document ID." },
+        "name": { "type": "string", "description": "Exam title." },
+        "classId": { "type": "string", "description": "Class UUID." },
+        "examDate": { "type": "integer", "description": "Exam date epoch milliseconds." },
+        "createdAt": { "type": "integer", "description": "Creation epoch milliseconds." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "name", "classId", "examDate", "createdAt", "updatedAt", "deleted"]
+    },
+    "ExamMark": {
+      "title": "ExamMark",
+      "description": "Student subject mark entry for an exam.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Mark UUID matching document ID." },
+        "examId": { "type": "string", "description": "Parent exam UUID." },
+        "studentId": { "type": "string", "description": "Student UUID." },
+        "subjectId": { "type": "string", "description": "Subject UUID." },
+        "marksObtained": { "type": "number", "description": "Marks scored." },
+        "totalMarks": { "type": "integer", "description": "Maximum marks." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "examId", "studentId", "subjectId", "marksObtained", "totalMarks", "updatedAt", "deleted"]
+    },
+    "LedgerEntry": {
+      "title": "LedgerEntry",
+      "description": "General academy income/expense entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Entry UUID matching document ID." },
+        "type": { "type": "string", "enum": ["INCOME", "EXPENSE"], "description": "Entry direction." },
+        "category": { "type": "string", "description": "Expense or income category." },
+        "title": { "type": "string", "description": "Entry title." },
+        "amount": { "type": "integer", "description": "Amount in Rs." },
+        "date": { "type": "integer", "description": "Entry date epoch milliseconds." },
+        "monthKey": { "type": "string", "description": "Month key (yyyy-MM)." },
+        "notes": { "type": "string", "description": "Optional notes." },
+        "linkedSalaryPaymentId": { "type": "string", "description": "Optional linked salary payment UUID." },
+        "updatedAt": { "type": "integer", "description": "LWW update epoch milliseconds." },
+        "deleted": { "type": "boolean", "description": "Soft-delete flag." }
+      },
+      "required": ["id", "type", "category", "title", "amount", "date", "monthKey", "notes", "updatedAt", "deleted"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserLink" },
+      "description": "Links a Google-authenticated user UID to their academy and role."
+    },
+    "/invites/{inviteEmail}": {
+      "schema": { "$ref": "#/entities/TeacherInvite" },
+      "description": "Pending teacher invites keyed by lowercase email."
+    },
+    "/academies/{academyId}": {
+      "schema": { "$ref": "#/entities/Academy" },
+      "description": "Academy workspace root document."
+    },
+    "/academies/{academyId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/AcademyMember" },
+      "description": "Academy member permissions subcollection."
+    },
+    "/academies/{academyId}/classes/{classId}": {
+      "schema": { "$ref": "#/entities/AcademyClass" },
+      "description": "Classes under the academy."
+    },
+    "/academies/{academyId}/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Subjects under the academy."
+    },
+    "/academies/{academyId}/timetable/{entryId}": {
+      "schema": { "$ref": "#/entities/TimetableEntry" },
+      "description": "Class timetable slots under the academy."
+    },
+    "/academies/{academyId}/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Students under the academy."
+    },
+    "/academies/{academyId}/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/Teacher" },
+      "description": "Teachers under the academy."
+    },
+    "/academies/{academyId}/salary_payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/SalaryPayment" },
+      "description": "Teacher salary payments under the academy."
+    },
+    "/academies/{academyId}/attendance/{attId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Student attendance records (writable by Admin and Teachers)."
+    },
+    "/academies/{academyId}/fee_charges/{chargeId}": {
+      "schema": { "$ref": "#/entities/FeeCharge" },
+      "description": "Monthly tuition, paper fee, and other fee charges."
+    },
+    "/academies/{academyId}/fee_payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/FeePayment" },
+      "description": "Append-only fee payment receipts (create-only)."
+    },
+    "/academies/{academyId}/exams/{examId}": {
+      "schema": { "$ref": "#/entities/Exam" },
+      "description": "Exams and class tests."
+    },
+    "/academies/{academyId}/marks/{markId}": {
+      "schema": { "$ref": "#/entities/ExamMark" },
+      "description": "Student marks per exam and subject."
+    },
+    "/academies/{academyId}/expenses/{entryId}": {
+      "schema": { "$ref": "#/entities/LedgerEntry" },
+      "description": "General academy income and expense entries."
+    }
+  }
+}

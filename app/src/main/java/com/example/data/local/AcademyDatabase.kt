@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SimpleSQLiteQuery
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -20,9 +22,10 @@ import androidx.sqlite.db.SimpleSQLiteQuery
         FeePayment::class,
         LedgerEntry::class,
         Exam::class,
-        ExamMark::class
+        ExamMark::class,
+        AcademyMember::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class AcademyDatabase : RoomDatabase() {
@@ -39,6 +42,7 @@ abstract class AcademyDatabase : RoomDatabase() {
     abstract fun ledgerEntryDao(): LedgerEntryDao
     abstract fun examDao(): ExamDao
     abstract fun examMarkDao(): ExamMarkDao
+    abstract fun academyMemberDao(): AcademyMemberDao
 
     fun checkpointWal() {
         openHelper.writableDatabase.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(TRUNCATE)")).use {
@@ -48,6 +52,13 @@ abstract class AcademyDatabase : RoomDatabase() {
 
     companion object {
         const val DB_NAME = "academy_manager.db"
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE students ADD COLUMN guardianWhatsapp TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE students ADD COLUMN whatsappHistory TEXT NOT NULL DEFAULT ''")
+            }
+        }
 
         @Volatile
         private var INSTANCE: AcademyDatabase? = null
@@ -70,7 +81,10 @@ abstract class AcademyDatabase : RoomDatabase() {
                 appContext,
                 AcademyDatabase::class.java,
                 DB_NAME
-            ).build()
+            )
+                .addMigrations(MIGRATION_2_3)
+                .fallbackToDestructiveMigration(dropAllTables = true)
+                .build()
         }
     }
 }

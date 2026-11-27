@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
@@ -35,17 +36,19 @@ fun ExamDetailScreen(
     classSubjects: List<Subject>,
     examMarks: List<ExamMark>,
     profile: AcademyProfile,
+    isAdmin: Boolean = true,
     computeExamResults: (List<Student>, List<Subject>, List<ExamMark>) -> List<StudentExamResult>,
     onBack: () -> Unit,
-    onSaveMarks: (examId: Long, subject: Subject, marksByStudent: Map<Long, Double>) -> Unit
+    onSaveMarks: (examId: String, subject: Subject, marksByStudent: Map<String, Double>) -> Unit,
+    onSendExamWhatsApp: (Student, Exam, String, StudentExamResult) -> Unit = { _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    var selectedSubjectId by rememberSaveable { mutableStateOf(classSubjects.firstOrNull()?.id ?: 0L) }
+    var selectedSubjectId by rememberSaveable { mutableStateOf(classSubjects.firstOrNull()?.id ?: "") }
     var subjectExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(classSubjects) {
-        if (selectedSubjectId == 0L && classSubjects.isNotEmpty()) {
+        if (selectedSubjectId.isBlank() && classSubjects.isNotEmpty()) {
             selectedSubjectId = classSubjects.first().id
         }
     }
@@ -112,7 +115,7 @@ fun ExamDetailScreen(
                             .associate { it.studentId to FormatUtils.formatMarks(it.marksObtained) }
                     }
                     val draftInputs = remember(selectedSubject.id, existingMap, classStudents) {
-                        mutableStateMapOf<Long, String>().apply {
+                        mutableStateMapOf<String, String>().apply {
                             classStudents.forEach { st ->
                                 put(st.id, existingMap[st.id] ?: "")
                             }
@@ -176,7 +179,8 @@ fun ExamDetailScreen(
                                         }
                                         OutlinedTextField(
                                             value = txt,
-                                            onValueChange = { draftInputs[student.id] = it },
+                                            onValueChange = { if (isAdmin) draftInputs[student.id] = it },
+                                            readOnly = !isAdmin,
                                             label = { Text("/ ${selectedSubject.totalMarks}") },
                                             isError = invalid,
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -188,25 +192,33 @@ fun ExamDetailScreen(
                             }
                         }
 
-                        Button(
-                            onClick = {
-                                val validMap = mutableMapOf<Long, Double>()
-                                classStudents.forEach { st ->
-                                    val value = draftInputs[st.id]?.trim()?.toDoubleOrNull()
-                                    if (value != null && value in 0.0..selectedSubject.totalMarks.toDouble()) {
-                                        validMap[st.id] = value
+                        if (isAdmin) {
+                            Button(
+                                onClick = {
+                                    val validMap = mutableMapOf<String, Double>()
+                                    classStudents.forEach { st ->
+                                        val value = draftInputs[st.id]?.trim()?.toDoubleOrNull()
+                                        if (value != null && value in 0.0..selectedSubject.totalMarks.toDouble()) {
+                                            validMap[st.id] = value
+                                        }
                                     }
-                                }
-                                onSaveMarks(exam.id, selectedSubject, validMap)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 50.dp)
-                                .testTag("save_marks_btn")
-                        ) {
-                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.save))
+                                    onSaveMarks(exam.id, selectedSubject, validMap)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 50.dp)
+                                    .testTag("save_marks_btn")
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.save))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.teacher_view_only_notice),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -249,6 +261,23 @@ fun ExamDetailScreen(
                                             "Marks: ${FormatUtils.formatMarks(res.obtainedTotal)} / ${res.maxTotal} (${FormatUtils.formatPercent(res.percentage)})",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            onSendExamWhatsApp(
+                                                res.student,
+                                                exam,
+                                                academyClass?.name ?: "",
+                                                res
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("exam_wa_${res.student.id}")
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Chat,
+                                            contentDescription = stringResource(R.string.wa_send_result),
+                                            tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
                                     IconButton(

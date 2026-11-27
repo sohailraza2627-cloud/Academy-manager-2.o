@@ -24,9 +24,17 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.AcademyManagerApp
 import com.example.R
+import com.example.data.ai.ParentMessageRequest
+import com.example.data.local.Student
 import com.example.data.local.StudentStatus
 import com.example.ui.components.LoadingStateView
+import com.example.ui.components.ParentWhatsAppSheet
+import com.example.ui.components.SyncStatusBadge
+import com.example.util.FormatUtils
+import com.example.util.WhatsAppMessageType
+import com.example.ui.screens.assistant.AssistantScreen
 import com.example.ui.screens.attendance.AttendanceScreen
+import com.example.ui.screens.auth.AuthScreen
 import com.example.ui.screens.classes.ClassDetailScreen
 import com.example.ui.screens.classes.ClassesScreen
 import com.example.ui.screens.dashboard.DashboardScreen
@@ -60,11 +68,12 @@ object AcademyRoutes {
     const val EXAM_DETAIL = "exam_detail/{examId}"
     const val REPORTS = "reports"
     const val SETTINGS = "settings"
+    const val ASSISTANT = "assistant"
 
     fun fees(tab: Int = 0) = "fees?tab=$tab"
-    fun studentDetail(id: Long) = "student_detail/$id"
-    fun classDetail(id: Long) = "class_detail/$id"
-    fun examDetail(id: Long) = "exam_detail/$id"
+    fun studentDetail(id: String) = "student_detail/$id"
+    fun classDetail(id: String) = "class_detail/$id"
+    fun examDetail(id: String) = "exam_detail/$id"
 }
 
 private data class BottomNavItem(
@@ -83,6 +92,8 @@ fun AcademyRoot(
     financeViewModel: FinanceViewModel
 ) {
     val gateState by appLockViewModel.gateState.collectAsStateWithLifecycle()
+    val authSession by appLockViewModel.authSession.collectAsStateWithLifecycle()
+    val pendingGoogleUser by appLockViewModel.pendingGoogleUser.collectAsStateWithLifecycle()
     val profile by appLockViewModel.academyProfile.collectAsStateWithLifecycle()
     val isDarkMode by appLockViewModel.isDarkMode.collectAsStateWithLifecycle()
 
@@ -98,6 +109,16 @@ fun AcademyRoot(
                     LoadingStateView()
                 }
             }
+        }
+        PinGateState.NeedsAuth -> {
+            AuthScreen(
+                isFirebaseConfigured = appLockViewModel.isFirebaseConfigured,
+                pendingGoogleUser = pendingGoogleUser,
+                onGoogleIdToken = appLockViewModel::signInWithGoogleIdToken,
+                onCreateAcademyWithGoogle = appLockViewModel::completeAdminAcademyCreation,
+                onCancelGoogleSetup = appLockViewModel::cancelPendingGoogleSetup,
+                onContinueOfflineLocal = appLockViewModel::continueOfflineLocalMode
+            )
         }
         PinGateState.NeedsPinSetup -> {
             PinScreen(
@@ -116,12 +137,14 @@ fun AcademyRoot(
             )
         }
         PinGateState.Unlocked -> {
-            UnlockedAcademyShell(
-                appLockViewModel = appLockViewModel,
-                academicsViewModel = academicsViewModel,
-                financeViewModel = financeViewModel,
-                isDarkMode = isDarkMode
-            )
+            key(authSession.uid) {
+                UnlockedAcademyShell(
+                    appLockViewModel = appLockViewModel,
+                    academicsViewModel = academicsViewModel,
+                    financeViewModel = financeViewModel,
+                    isDarkMode = isDarkMode
+                )
+            }
         }
     }
 }
@@ -147,6 +170,17 @@ private fun UnlockedAcademyShell(
     }
 
     val profile by appLockViewModel.academyProfile.collectAsStateWithLifecycle()
+    val authSession by appLockViewModel.authSession.collectAsStateWithLifecycle()
+    val syncStatus by appLockViewModel.syncStatus.collectAsStateWithLifecycle()
+    val devicePrefix by appLockViewModel.devicePrefix.collectAsStateWithLifecycle()
+    val hasPinSet by appLockViewModel.hasPinSet.collectAsStateWithLifecycle()
+    val aiAssistantEnabled by appLockViewModel.aiAssistantEnabled.collectAsStateWithLifecycle()
+    val userGeminiApiKey by appLockViewModel.userGeminiApiKey.collectAsStateWithLifecycle()
+    val members by appLockViewModel.members.collectAsStateWithLifecycle()
+    val isAdmin = authSession.isAdmin
+
+    var activeWhatsAppTarget by remember { mutableStateOf<Pair<Student, ParentMessageRequest>?>(null) }
+
     val classes by academicsViewModel.classes.collectAsStateWithLifecycle()
     val subjects by academicsViewModel.subjects.collectAsStateWithLifecycle()
     val studentsState by academicsViewModel.studentsState.collectAsStateWithLifecycle()
@@ -196,7 +230,11 @@ private fun UnlockedAcademyShell(
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = WindowInsets.safeDrawing,
+            contentWindowInsets = if (showBottomBar) {
+                WindowInsets.safeDrawing.exclude(WindowInsets.ime)
+            } else {
+                WindowInsets(0, 0, 0, 0)
+            },
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 if (showBottomBar) {
@@ -209,6 +247,23 @@ private fun UnlockedAcademyShell(
                     }
                     TopAppBar(
                         title = { Text(topTitle) },
+                        actions = {
+                            IconButton(
+                                onClick = { navController.navigate(AcademyRoutes.ASSISTANT) },
+                                modifier = Modifier.testTag("topbar_assistant_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = stringResource(R.string.assistant_title),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            SyncStatusBadge(
+                                status = syncStatus,
+                                onClick = { appLockViewModel.triggerManualSync() },
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        },
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.surface,
                             titleContentColor = MaterialTheme.colorScheme.onSurface
@@ -245,6 +300,7 @@ private fun UnlockedAcademyShell(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
             ) {
                 if (showBottomBar && useNavRail) {
                     NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
@@ -280,6 +336,7 @@ private fun UnlockedAcademyShell(
                         composable(AcademyRoutes.HOME) {
                             DashboardScreen(
                                 profile = profile,
+                                isAdmin = isAdmin,
                                 students = students,
                                 attendanceRecords = attendanceRecords,
                                 feeCharges = feeCharges,
@@ -290,7 +347,8 @@ private fun UnlockedAcademyShell(
                                 onNavigateToFees = { navigateTopTab(AcademyRoutes.fees(0)) },
                                 onNavigateToPaperFee = { navigateTopTab(AcademyRoutes.fees(1)) },
                                 onNavigateToLedger = { navController.navigate(AcademyRoutes.LEDGER) },
-                                onNavigateToReports = { navController.navigate(AcademyRoutes.REPORTS) }
+                                onNavigateToReports = { navController.navigate(AcademyRoutes.REPORTS) },
+                                onOpenAssistant = { navController.navigate(AcademyRoutes.ASSISTANT) }
                             )
                         }
 
@@ -298,6 +356,7 @@ private fun UnlockedAcademyShell(
                             StudentsScreen(
                                 studentsState = studentsState,
                                 classes = classes,
+                                isAdmin = isAdmin,
                                 onStudentClick = { id -> navController.navigate(AcademyRoutes.studentDetail(id)) },
                                 onSaveStudent = { st ->
                                     academicsViewModel.saveStudent(st) {
@@ -321,9 +380,9 @@ private fun UnlockedAcademyShell(
 
                         composable(
                             route = AcademyRoutes.STUDENT_DETAIL,
-                            arguments = listOf(navArgument("studentId") { type = NavType.LongType })
+                            arguments = listOf(navArgument("studentId") { type = NavType.StringType })
                         ) { entry ->
-                            val studentId = entry.arguments?.getLong("studentId") ?: 0L
+                            val studentId = entry.arguments?.getString("studentId") ?: ""
                             val student by academicsViewModel.observeStudent(studentId).collectAsStateWithLifecycle(initialValue = null)
                             val stAttendance by academicsViewModel.observeStudentAttendance(studentId).collectAsStateWithLifecycle(initialValue = emptyList())
                             val stCharges by financeViewModel.observeStudentFeeCharges(studentId).collectAsStateWithLifecycle(initialValue = emptyList())
@@ -340,6 +399,10 @@ private fun UnlockedAcademyShell(
                                 feeCharges = stCharges,
                                 feePayments = stPayments,
                                 profile = profile,
+                                isAdmin = isAdmin,
+                                aiEnabled = aiAssistantEnabled,
+                                onSummarizeStudent = academicsViewModel::summarizeStudent,
+                                onSendWhatsAppRequest = { st, req -> activeWhatsAppTarget = st to req },
                                 onBack = { navController.popBackStack() },
                                 onSaveStudent = { st ->
                                     academicsViewModel.saveStudent(st) {
@@ -379,6 +442,16 @@ private fun UnlockedAcademyShell(
                                     academicsViewModel.saveAttendance { formattedDate ->
                                         showMessage(context.getString(R.string.attendance_saved, formattedDate))
                                     }
+                                },
+                                onSendAttendanceWhatsApp = { student, className, dateLabel, status ->
+                                    activeWhatsAppTarget = student to ParentMessageRequest(
+                                        type = WhatsAppMessageType.ATTENDANCE_ALERT,
+                                        academyName = profile.academyName,
+                                        studentName = student.name,
+                                        className = className,
+                                        dateLabel = dateLabel,
+                                        attendanceStatus = status
+                                    )
                                 }
                             )
                         }
@@ -388,8 +461,10 @@ private fun UnlockedAcademyShell(
                             arguments = listOf(navArgument("tab") { type = NavType.IntType; defaultValue = 0 })
                         ) { entry ->
                             val initialTab = entry.arguments?.getInt("tab") ?: 0
+                            val classMap = remember(classes) { classes.associateBy { it.id } }
                             FeesScreen(
                                 initialTab = initialTab,
+                                isAdmin = isAdmin,
                                 feeChargesState = feeChargesState,
                                 students = students,
                                 classes = classes,
@@ -413,7 +488,18 @@ private fun UnlockedAcademyShell(
                                 onCollectTuitionFifo = financeViewModel::collectTuitionPaymentFifo,
                                 onCollectSingleCharge = financeViewModel::collectSingleChargePayment,
                                 onDeleteCharge = financeViewModel::deleteFeeCharge,
-                                onShowMessage = ::showMessage
+                                onShowMessage = ::showMessage,
+                                onSendFeeWhatsApp = { student, tDue, pDue, oDue ->
+                                    activeWhatsAppTarget = student to ParentMessageRequest(
+                                        type = WhatsAppMessageType.FEE_REMINDER,
+                                        academyName = profile.academyName,
+                                        studentName = student.name,
+                                        className = classMap[student.classId]?.name ?: "",
+                                        tuitionPending = tDue,
+                                        paperFeePending = pDue,
+                                        otherFeePending = oDue
+                                    )
+                                }
                             )
                         }
 
@@ -424,7 +510,8 @@ private fun UnlockedAcademyShell(
                                 onOpenExams = { navController.navigate(AcademyRoutes.EXAMS) },
                                 onOpenLedger = { navController.navigate(AcademyRoutes.LEDGER) },
                                 onOpenReports = { navController.navigate(AcademyRoutes.REPORTS) },
-                                onOpenSettings = { navController.navigate(AcademyRoutes.SETTINGS) }
+                                onOpenSettings = { navController.navigate(AcademyRoutes.SETTINGS) },
+                                onOpenAssistant = { navController.navigate(AcademyRoutes.ASSISTANT) }
                             )
                         }
 
@@ -432,6 +519,7 @@ private fun UnlockedAcademyShell(
                             TeachersScreen(
                                 teachersState = teachersState,
                                 salaryPayments = salaryPayments,
+                                isAdmin = isAdmin,
                                 onBack = { navController.popBackStack() },
                                 onSaveTeacher = { academicsViewModel.saveTeacher(it) },
                                 onDeleteTeacher = { academicsViewModel.deleteTeacher(it) },
@@ -451,6 +539,7 @@ private fun UnlockedAcademyShell(
                                 classes = classes,
                                 students = students,
                                 subjects = subjects,
+                                isAdmin = isAdmin,
                                 onBack = { navController.popBackStack() },
                                 onClassClick = { id -> navController.navigate(AcademyRoutes.classDetail(id)) },
                                 onSaveClass = { academicsViewModel.saveClass(it) },
@@ -467,19 +556,42 @@ private fun UnlockedAcademyShell(
 
                         composable(
                             route = AcademyRoutes.CLASS_DETAIL,
-                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                            arguments = listOf(navArgument("classId") { type = NavType.StringType })
                         ) { entry ->
-                            val classId = entry.arguments?.getLong("classId") ?: 0L
+                            val classId = entry.arguments?.getString("classId") ?: ""
                             val cls = classes.find { it.id == classId }
                             val clsSubjects by academicsViewModel.observeSubjectsByClass(classId)
                                 .collectAsStateWithLifecycle(initialValue = emptyList())
                             val clsTimetable by academicsViewModel.observeTimetableByClass(classId)
                                 .collectAsStateWithLifecycle(initialValue = emptyList())
 
+                            val clsStudents = remember(students, classId) {
+                                students.filter { it.classId == classId }
+                            }
+                            val clsAttendance = remember(attendanceRecords, classId) {
+                                attendanceRecords.filter { it.classId == classId }
+                            }
+                            val clsCharges = remember(feeCharges, classId) {
+                                feeCharges.filter { it.classId == classId }
+                            }
+                            val clsExams = remember(exams, classId) {
+                                exams.filter { it.classId == classId }
+                            }
+
                             ClassDetailScreen(
                                 academyClass = cls,
                                 subjects = clsSubjects,
                                 timetable = clsTimetable,
+                                classStudents = clsStudents,
+                                attendanceRecords = clsAttendance,
+                                feeCharges = clsCharges,
+                                exams = clsExams,
+                                examMarks = examMarks,
+                                profile = profile,
+                                aiEnabled = aiAssistantEnabled,
+                                computeExamResults = academicsViewModel::computeExamResults,
+                                onSummarizeClass = academicsViewModel::summarizeClass,
+                                isAdmin = isAdmin,
                                 onBack = { navController.popBackStack() },
                                 onSaveSubject = { academicsViewModel.saveSubject(it) },
                                 onDeleteSubject = { academicsViewModel.deleteSubject(it) },
@@ -492,6 +604,7 @@ private fun UnlockedAcademyShell(
                             LedgerScreen(
                                 ledgerState = ledgerState,
                                 feePayments = feePayments,
+                                isAdmin = isAdmin,
                                 onBack = { navController.popBackStack() },
                                 onSaveEntry = { financeViewModel.saveLedgerEntry(it) },
                                 onDeleteEntry = { financeViewModel.deleteLedgerEntry(it) }
@@ -502,6 +615,7 @@ private fun UnlockedAcademyShell(
                             ExamsScreen(
                                 examsState = examsState,
                                 classes = classes,
+                                isAdmin = isAdmin,
                                 onBack = { navController.popBackStack() },
                                 onExamClick = { id -> navController.navigate(AcademyRoutes.examDetail(id)) },
                                 onSaveExam = { academicsViewModel.saveExam(it) },
@@ -511,9 +625,9 @@ private fun UnlockedAcademyShell(
 
                         composable(
                             route = AcademyRoutes.EXAM_DETAIL,
-                            arguments = listOf(navArgument("examId") { type = NavType.LongType })
+                            arguments = listOf(navArgument("examId") { type = NavType.StringType })
                         ) { entry ->
-                            val examId = entry.arguments?.getLong("examId") ?: 0L
+                            val examId = entry.arguments?.getString("examId") ?: ""
                             val exam = exams.find { it.id == examId }
                             val cls = classes.find { it.id == exam?.classId }
                             val clsStudents = remember(students, exam) {
@@ -533,12 +647,27 @@ private fun UnlockedAcademyShell(
                                 classSubjects = clsSubjects,
                                 examMarks = marks,
                                 profile = profile,
+                                isAdmin = isAdmin,
                                 computeExamResults = academicsViewModel::computeExamResults,
                                 onBack = { navController.popBackStack() },
                                 onSaveMarks = { eId, subject, map ->
                                     academicsViewModel.saveExamMarksForSubject(eId, subject, map) {
                                         showMessage(context.getString(R.string.marks_saved))
                                     }
+                                },
+                                onSendExamWhatsApp = { student, ex, className, result ->
+                                    activeWhatsAppTarget = student to ParentMessageRequest(
+                                        type = WhatsAppMessageType.EXAM_RESULT,
+                                        academyName = profile.academyName,
+                                        studentName = student.name,
+                                        className = className,
+                                        subjectOrExamTitle = ex.name,
+                                        dateLabel = FormatUtils.formatDate(ex.examDate),
+                                        obtainedMarks = FormatUtils.formatMarks(result.obtainedTotal),
+                                        totalMarks = result.maxTotal.toString(),
+                                        percentageLabel = FormatUtils.formatPercent(result.percentage),
+                                        grade = result.grade
+                                    )
                                 }
                             )
                         }
@@ -564,14 +693,31 @@ private fun UnlockedAcademyShell(
                         composable(AcademyRoutes.SETTINGS) {
                             SettingsScreen(
                                 profile = profile,
+                                authSession = authSession,
+                                syncStatus = syncStatus,
+                                devicePrefix = devicePrefix,
+                                hasPinSet = hasPinSet,
+                                members = members,
+                                isFirebaseConfigured = appLockViewModel.isFirebaseConfigured,
                                 isDarkMode = isDarkMode,
                                 onToggleDarkMode = appLockViewModel::setDarkMode,
+                                aiAssistantEnabled = aiAssistantEnabled,
+                                onToggleAiAssistant = appLockViewModel::setAiAssistantEnabled,
+                                userGeminiApiKey = userGeminiApiKey,
+                                onSaveUserGeminiApiKey = appLockViewModel::saveUserGeminiApiKey,
                                 onSaveProfile = { name, tag, phone, addr, logo ->
                                     appLockViewModel.saveProfile(name, tag, phone, addr, logo) {
                                         showMessage(context.getString(R.string.profile_saved))
                                     }
                                 },
-                                onChangePin = appLockViewModel::changePin,
+                                onChangePin = appLockViewModel::setOrChangePin,
+                                onSetDevicePrefix = { newPrefix ->
+                                    appLockViewModel.setDevicePrefix(newPrefix) {
+                                        showMessage(context.getString(R.string.prefix_saved))
+                                    }
+                                },
+                                onInviteTeacher = appLockViewModel::inviteTeacherByEmail,
+                                onSignOut = appLockViewModel::signOut,
                                 onDatabaseRestored = {
                                     (context as? Activity)?.recreate()
                                 },
@@ -579,9 +725,35 @@ private fun UnlockedAcademyShell(
                                 onBack = { navController.popBackStack() }
                             )
                         }
+
+                        composable(AcademyRoutes.ASSISTANT) {
+                            AssistantScreen(
+                                onOpenWhatsApp = { st, req -> activeWhatsAppTarget = st to req },
+                                onReceiptIssued = { r ->
+                                    showMessage("${r.receiptNumber}: ${FormatUtils.formatCurrency(r.amountPaid)} saved")
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    activeWhatsAppTarget?.let { (student, request) ->
+        ParentWhatsAppSheet(
+            student = student,
+            request = request,
+            aiEnabled = aiAssistantEnabled,
+            initialDraft = academicsViewModel.buildLocalParentMessage(request),
+            onDraftWithAi = academicsViewModel::draftParentMessageWithAi,
+            onDismiss = { activeWhatsAppTarget = null },
+            onSendResult = { res ->
+                res.onFailure { err ->
+                    showMessage(err.localizedMessage ?: context.getString(R.string.error_generic))
+                }
+            }
+        )
     }
 }
